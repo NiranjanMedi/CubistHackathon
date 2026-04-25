@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout *)",
+      "Bash(python -c \"from BasicEngine.board import Board, Move; b = Board\\(\\); print\\('castling:', b.castling\\); print\\('legal moves count:', len\\(b.legal_moves\\(\\)\\)\\); print\\('OK'\\)\")"
+    ]
+  }
+}
