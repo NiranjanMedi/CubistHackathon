@@ -18,15 +18,6 @@ It compares two evaluations of the position:
 
 When `|shallow - deep| > 80cp`, the position is a **critical point** — the surface appearance is deceptive. The deeper the opponent thinks, the worse it gets for them. This is when novelty mode activates.
 
-Search depth is scaled to opponent rating so the engine models what *that specific player* actually calculates:
-
-| Rating | Search depth |
-|---|---|
-| < 1200 | 2 |
-| 1200–1500 | 3 |
-| 1500–1800 | 4 |
-| 1800–2100 | 5 |
-| 2100+ | 6 |
 
 ### 2. KL Divergence Move Selection (`BasicEngine/novelty_engine.py`)
 
