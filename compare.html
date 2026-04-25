@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baseline vs Novelty Engine</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=DM+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --sq-light: #F0D9B5; --sq-dark: #B58863;
+  --sq-last-l: #CDD16E; --sq-last-d: #AABA2A;
+  --sq-legal: rgba(20,85,30,0.5);
+  --bg: #1a1a18; --panel-bg: #242421; --card-bg: #2e2e2a;
+  --border: #3a3a35; --text: #e8e4d8; --muted: #888880;
+  --accent: #c8a96e; --danger: #c06040;
+  --novelty-color: #6eaac8;
+  --font-display: 'Playfair Display', serif;
+  --font-mono: 'DM Mono', monospace;
+  --sq: 56px;
+}
+
+body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-mono);
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 2rem 1rem;
+}
+
+header { margin-bottom: 1.5rem; text-align: center; }
+header h1 { font-family: var(--font-display); font-size: 26px; color: var(--accent); }
+header p { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+/* ── Controls ── */
+.controls {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem;
+}
+button {
+  font-family: var(--font-mono); font-size: 12px;
+  padding: 7px 14px; border-radius: 6px;
+  border: 0.5px solid var(--border);
+  background: transparent; color: var(--text);
+  cursor: pointer; transition: background 0.15s;
+}
+button:hover { background: var(--panel-bg); }
+button.accent {
+  background: var(--accent); color: #1a1a18;
+  border-color: var(--accent); font-weight: 500;
+}
+button.accent:hover { opacity: 0.85; }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+#statusMsg { font-size: 12px; color: var(--muted); }
+#statusMsg.warn { color: var(--danger); }
+
+/* ── Side-by-side layout ── */
+.compare-wrap {
+  display: flex; gap: 40px; align-items: flex-start;
+  justify-content: center; flex-wrap: wrap;
+}
+
+.board-section { display: flex; flex-direction: column; gap: 10px; }
+
+.section-label {
+  font-family: var(--font-display); font-size: 16px; text-align: center;
+}
+.section-label.baseline { color: var(--accent); }
+.section-label.novelty  { color: var(--novelty-color); }
+
+/* ── Board ── */
+.board-wrap { display: flex; align-items: flex-start; gap: 0; }
+.rank-col {
+  display: flex; flex-direction: column;
+  padding-right: 5px;
+}
+.rank-col span {
+  height: var(--sq); display: flex; align-items: center;
+  font-size: 10px; color: var(--muted);
+}
+.board-col { display: flex; flex-direction: column; }
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, var(--sq));
+  grid-template-rows: repeat(8, var(--sq));
+  border: 2px solid #5a4a2a;
+}
+.file-row { display: flex; width: calc(var(--sq) * 8); }
+.file-row span { width: var(--sq); text-align: center; font-size: 10px; color: var(--muted); padding-top: 4px; }
+
+.sq {
+  width: var(--sq); height: var(--sq);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; cursor: default; transition: filter 0.1s;
+}
+.sq.light  { background: var(--sq-light); }
+.sq.dark   { background: var(--sq-dark); }
+.sq.last-l { background: var(--sq-last-l); }
+.sq.last-d { background: var(--sq-last-d); }
+.sq.selected { outline: 3px solid rgba(255,220,50,0.85); outline-offset: -3px; }
+.sq.legal-target::after {
+  content: ''; position: absolute;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--sq-legal); pointer-events: none;
+}
+.sq.legal-capture::after {
+  content: ''; position: absolute; inset: 0;
+  border: 4px solid var(--sq-legal); pointer-events: none;
+}
+
+.piece { font-size: 36px; line-height: 1; cursor: pointer; user-select: none; transition: transform 0.1s; }
+.piece:hover { transform: scale(1.1); }
+.piece.white { color: #fff; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.7)); }
+.piece.black { color: #1a1a18; -webkit-text-stroke: 1px #1a1a18; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.35)); }
+
+/* ── Info card ── */
+.info-card {
+  background: var(--card-bg); border: 0.5px solid var(--border);
+  border-radius: 8px; padding: 10px 14px; font-size: 12px;
+  min-height: 60px;
+}
+.info-card .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.info-card .val { color: var(--text); }
+.info-card .mode {
+  display: inline-block; font-size: 10px; padding: 1px 7px;
+  border-radius: 3px; margin-top: 4px;
+}
+.mode.minimax  { background: rgba(200,169,110,0.15); color: var(--accent); }
+.mode.engine   { background: rgba(200,169,110,0.15); color: var(--accent); }
+.mode.novelty  { background: rgba(110,170,200,0.15); color: var(--novelty-color); }
+
+/* ── Move list ── */
+.move-list {
+  background: var(--card-bg); border: 0.5px solid var(--border);
+  border-radius: 8px; padding: 8px 10px;
+  max-height: 200px; overflow-y: auto; font-size: 11px;
+  width: calc(var(--sq) * 8 + 24px);
+}
+.move-row { display: flex; gap: 4px; align-items: center; padding: 1px 0; }
+.move-num { font-size: 10px; color: var(--muted); min-width: 22px; }
+.move-tag { font-size: 11px; padding: 1px 6px; border-radius: 3px; }
+.move-tag.w { background: rgba(200,169,110,0.15); color: var(--accent); }
+.move-tag.b { background: rgba(255,255,255,0.05); color: var(--text); }
+
+/* ── Promotion picker ── */
+.promo-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75); z-index: 100;
+  align-items: center; justify-content: center;
+}
+.promo-overlay.show { display: flex; }
+.promo-box {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px 24px; text-align: center;
+}
+.promo-box .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; }
+.promo-pieces { display: flex; gap: 8px; }
+.promo-piece {
+  font-size: 42px; width: 56px; height: 56px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent;
+  transition: background 0.15s;
+}
+.promo-piece:hover { background: var(--panel-bg); }
+
+/* ── Win overlay ── */
+.win-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75); z-index: 200;
+  align-items: center; justify-content: center;
+}
+.win-overlay.show { display: flex; }
+.win-box {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 16px; padding: 32px 48px; text-align: center;
+}
+.win-title { font-family: var(--font-display); font-size: 28px; color: var(--accent); margin-bottom: 6px; }
+.win-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.spinner { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Baseline vs Novelty Engine</h1>
+  <p>You play white — see how each engine responds to the same moves</p>
+</header>
+
+<div class="controls">
+  <button class="accent" onclick="resetGame()">New Game</button>
+  <span class="spinner" id="spinner"></span>
+  <span id="statusMsg"></span>
+</div>
+
+<div class="compare-wrap">
+
+  <!-- ── Left: Baseline ── -->
+  <div class="board-section">
+    <div class="section-label baseline">Baseline (Minimax)</div>
+    <div class="board-wrap">
+      <div class="rank-col" id="rankColA"></div>
+      <div class="board-col">
+        <div class="board" id="boardA"></div>
+        <div class="file-row" id="fileRowA"></div>
+      </div>
+    </div>
+    <div class="info-card" id="infoA">
+      <div class="lbl">Engine reply</div>
+      <div class="val" id="infoAMove">—</div>
+    </div>
+    <div class="move-list" id="histA"></div>
+  </div>
+
+  <!-- ── Right: Novelty ── -->
+  <div class="board-section">
+    <div class="section-label novelty">Novelty Engine</div>
+    <div class="board-wrap">
+      <div class="rank-col" id="rankColB"></div>
+      <div class="board-col">
+        <div class="board" id="boardB"></div>
+        <div class="file-row" id="fileRowB"></div>
+      </div>
+    </div>
+    <div class="info-card" id="infoB">
+      <div class="lbl">Engine reply</div>
+      <div class="val" id="infoBMove">—</div>
+      <div id="infoBMode"></div>
+      <div id="infoBReason" style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4"></div>
+    </div>
+    <div class="move-list" id="histB"></div>
+  </div>
+
+</div>
+
+<!-- Promotion picker -->
+<div class="promo-overlay" id="promoOverlay">
+  <div class="promo-box">
+    <div class="lbl">Promote pawn to</div>
+    <div class="promo-pieces" id="promoPieces"></div>
+  </div>
+</div>
+
+<!-- Win overlay -->
+<div class="win-overlay" id="winOverlay">
+  <div class="win-box">
+    <div class="win-title" id="winTitle"></div>
+    <div class="win-sub" id="winSub"></div>
+    <button class="accent" onclick="resetGame()">New Game</button>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+const FILES = 'abcdefgh';
+const RANKS = '87654321';
+
+const GLYPHS = {
+  wP:'♟', wN:'♞', wB:'♝', wR:'♜', wQ:'♛', wK:'♚',
+  bP:'♟', bN:'♞', bB:'♝', bR:'♜', bQ:'♛', bK:'♚',
+};
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let stateA = { squares:{}, turn:'w', history:[], legal_moves:[], is_over:false };
+let stateB = { squares:{}, turn:'w', history:[], legal_moves:[], is_over:false };
+let lastReply = {};         // { a_engine_move, b_engine_move, b_engine_mode, b_engine_reason }
+let selected = null;        // "r,c"
+let legalTargets = [];      // ["r,c", ...]
+let busy = false;
+let pendingPromo = null;
+
+// ── Board labels ──────────────────────────────────────────────────────────────
+['A','B'].forEach(id => {
+  const rc = document.getElementById('rankCol' + id);
+  const fr = document.getElementById('fileRow' + id);
+  for (let r = 0; r < 8; r++) {
+    const s = document.createElement('span'); s.textContent = RANKS[r]; rc.appendChild(s);
+  }
+  for (let c = 0; c < 8; c++) {
+    const s = document.createElement('span'); s.textContent = FILES[c]; fr.appendChild(s);
+  }
+});
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderBoard(elId, state, selKey, legalSet, clickable) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '';
+
+  const hist = state.history || [];
+  let lastFrom = null, lastTo = null;
+  if (hist.length) {
+    const last = hist[hist.length - 1];
+    lastFrom = `${8 - parseInt(last[1])},${last.charCodeAt(0) - 97}`;
+    lastTo   = `${8 - parseInt(last[3])},${last.charCodeAt(2) - 97}`;
+  }
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const key = `${r},${c}`;
+      const isLight = (r + c) % 2 === 0;
+      const isLast  = key === lastFrom || key === lastTo;
+      const isSel   = key === selKey;
+      const isLegal = legalSet.includes(key);
+
+      const sq = document.createElement('div');
+      sq.className = 'sq ' + (isLast ? (isLight ? 'last-l' : 'last-d') : (isLight ? 'light' : 'dark'));
+      if (isSel)   sq.classList.add('selected');
+      sq.dataset.key = key;
+      if (clickable) sq.onclick = () => handleClick(key);
+
+      const piece = state.squares[key];
+      if (piece) {
+        const span = document.createElement('span');
+        span.className = 'piece ' + (piece[0] === 'w' ? 'white' : 'black');
+        span.textContent = GLYPHS[piece] || '?';
+        sq.appendChild(span);
+      }
+
+      if (isLegal) sq.classList.add(piece ? 'legal-capture' : 'legal-target');
+      el.appendChild(sq);
+    }
+  }
+}
+
+function renderMoveList(elId, history) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '';
+  for (let i = 0; i < history.length; i += 2) {
+    const row = document.createElement('div'); row.className = 'move-row';
+    const num = document.createElement('span'); num.className = 'move-num'; num.textContent = (i/2+1)+'.';
+    row.appendChild(num);
+    ['w','b'].forEach((side, j) => {
+      if (history[i+j] !== undefined) {
+        const t = document.createElement('span');
+        t.className = 'move-tag ' + side;
+        t.textContent = history[i+j];
+        row.appendChild(t);
+      }
+    });
+    el.appendChild(row);
+  }
+  el.scrollTop = el.scrollHeight;
+}
+
+function render() {
+  renderBoard('boardA', stateA, selected, legalTargets, true);
+  renderBoard('boardB', stateB, null, [], false);
+  renderMoveList('histA', stateA.history || []);
+  renderMoveList('histB', stateB.history || []);
+
+  // Info card A
+  const aMove = lastReply.a_engine_move;
+  document.getElementById('infoAMove').textContent = aMove || '—';
+
+  // Info card B
+  const bMove = lastReply.b_engine_move;
+  const bMode = lastReply.b_engine_mode || '';
+  const bReason = lastReply.b_engine_reason || '';
+  document.getElementById('infoBMove').textContent = bMove || '—';
+  const modeEl = document.getElementById('infoBMode');
+  modeEl.innerHTML = bMode ? `<span class="mode ${bMode}">${bMode}</span>` : '';
+  document.getElementById('infoBReason').textContent = bReason ? bReason.split('—')[0].trim() : '';
+
+  // Win check (left board is source of truth for game over)
+  if (stateA.is_over) {
+    const title = document.getElementById('winTitle');
+    const sub   = document.getElementById('winSub');
+    if (stateA.result_type === 'stalemate') {
+      title.textContent = 'Draw'; sub.textContent = 'Stalemate.';
+    } else if (stateA.winner) {
+      title.textContent = (stateA.winner === 'w' ? 'White' : 'Black') + ' wins!';
+      sub.textContent = 'Checkmate.';
+    }
+    document.getElementById('winOverlay').className = 'win-overlay show';
+  }
+}
+
+// ── Interaction (left board only) ────────────────────────────────────────────
+function handleClick(key) {
+  if (busy || stateA.is_over) return;
+  if (stateA.turn !== 'w') return;
+
+  if (selected && legalTargets.includes(key)) {
+    const [fr, fc] = selected.split(',').map(Number);
+    const [tr, tc] = key.split(',').map(Number);
+    const uci = FILES[fc] + RANKS[fr] + FILES[tc] + RANKS[tr];
+    const piece = stateA.squares[selected];
+    const isPromo = piece && piece[1] === 'P' && tr === 0;
+    if (isPromo) {
+      showPromoPicker(uci, piece[0]);
+    } else {
+      sendMove(uci);
+    }
+    selected = null; legalTargets = [];
+    render();
+    return;
+  }
+
+  // Deselect or select
+  selected = null; legalTargets = [];
+  const piece = stateA.squares[key];
+  if (piece && piece[0] === 'w') {
+    selected = key;
+    const [r, c] = key.split(',').map(Number);
+    const fromUci = FILES[c] + RANKS[r];
+    legalTargets = (stateA.legal_moves || [])
+      .filter(m => m.startsWith(fromUci))
+      .map(m => `${8 - parseInt(m[3])},${m.charCodeAt(2) - 97}`);
+  }
+  render();
+}
+
+// ── Promotion ─────────────────────────────────────────────────────────────────
+function showPromoPicker(baseUci, color) {
+  pendingPromo = baseUci;
+  const el = document.getElementById('promoPieces');
+  el.innerHTML = '';
+  [['q','♛'],['r','♜'],['b','♝'],['n','♞']].forEach(([letter, glyph]) => {
+    const btn = document.createElement('div');
+    btn.className = 'promo-piece';
+    btn.textContent = glyph;
+    btn.style.color = color === 'w' ? '#fff' : '#1a1a18';
+    if (color === 'b') btn.style.webkitTextStroke = '1px #1a1a18';
+    btn.onclick = () => {
+      document.getElementById('promoOverlay').className = 'promo-overlay';
+      sendMove(pendingPromo + letter);
+      pendingPromo = null;
+    };
+    el.appendChild(btn);
+  });
+  document.getElementById('promoOverlay').className = 'promo-overlay show';
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function apiFetch(path, body) {
+  busy = true;
+  document.getElementById('spinner').textContent = 'Engines thinking…';
+  document.getElementById('statusMsg').textContent = '';
+  try {
+    const opts = body
+      ? { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
+      : { method:'GET' };
+    const res = await fetch(API + path, opts);
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('statusMsg').textContent = data.error;
+      document.getElementById('statusMsg').className = 'warn';
+      return null;
+    }
+    return data;
+  } catch (e) {
+    document.getElementById('statusMsg').textContent = 'Cannot reach server on localhost:5001';
+    document.getElementById('statusMsg').className = 'warn';
+    return null;
+  } finally {
+    busy = false;
+    document.getElementById('spinner').textContent = '';
+  }
+}
+
+async function sendMove(uci) {
+  const data = await apiFetch('/move', { move: uci });
+  if (!data) return;
+  stateA = data.a;
+  stateB = data.b;
+  lastReply = {
+    a_engine_move: data.a_engine_move,
+    b_engine_move: data.b_engine_move,
+    b_engine_mode: data.b_engine_mode,
+    b_engine_reason: data.b_engine_reason,
+  };
+  render();
+}
+
+async function resetGame() {
+  selected = null; legalTargets = []; lastReply = {};
+  document.getElementById('winOverlay').className = 'win-overlay';
+  const data = await apiFetch('/reset', {});
+  if (!data) return;
+  stateA = data.a; stateB = data.b;
+  render();
+}
+
+async function loadState() {
+  const data = await apiFetch('/state');
+  if (!data) return;
+  stateA = data.a; stateB = data.b;
+  render();
+}
+
+loadState();
+</script>
+</body>
+</html>
