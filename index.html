@@ -90,6 +90,23 @@ button:disabled { opacity: 0.35; cursor: not-allowed; }
 .spinner { display: none; font-size: 11px; color: var(--muted); text-align: center; padding: 4px; }
 .spinner.show { display: block; }
 
+/* ── Promotion picker ── */
+.promo-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+.promo-overlay.show { display: flex; }
+.promo-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; text-align: center; }
+.promo-box .label { margin-bottom: 12px; }
+.promo-pieces { display: flex; gap: 8px; }
+.promo-piece { font-size: 48px; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); background: transparent; transition: background 0.15s; }
+.promo-piece:hover { background: var(--panel-bg); }
+
+/* ── Win overlay ── */
+.win-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; align-items: center; justify-content: center; }
+.win-overlay.show { display: flex; }
+.win-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 36px 48px; text-align: center; max-width: 340px; }
+.win-title { font-family: var(--font-display); font-size: 32px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
+.win-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+.win-box button { font-size: 14px; padding: 10px 28px; }
+
 /* scrollbar */
 ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 </style>
@@ -146,6 +163,23 @@ button:disabled { opacity: 0.35; cursor: not-allowed; }
   </div>
 </div>
 
+<!-- Promotion picker -->
+<div class="promo-overlay" id="promoOverlay">
+  <div class="promo-box">
+    <div class="label">Promote pawn to</div>
+    <div class="promo-pieces" id="promoPieces"></div>
+  </div>
+</div>
+
+<!-- Win overlay -->
+<div class="win-overlay" id="winOverlay">
+  <div class="win-box">
+    <div class="win-title" id="winTitle"></div>
+    <div class="win-sub" id="winSub"></div>
+    <button class="accent" onclick="resetGame()">New game</button>
+  </div>
+</div>
+
 <script>
 const API = '/api';
 
@@ -156,12 +190,13 @@ const GLYPHS = {
 };
 
 // ── state ─────────────────────────────────────────────────────────────────────
-let state = { squares:{}, turn:'w', history:[], legal_moves:[], is_over:false };
+let state = { squares:{}, turn:'w', history:[], legal_moves:[], is_over:false, winner:null, result_type:null };
 let selected = null;   // "r,c" string of selected square
 let legalFromSelected = [];
 let mode = 'human';    // 'human' | 'engine'
 let lightning = false;
 let busy = false;
+let pendingPromoUci = null;  // base UCI awaiting promotion choice
 
 // ── board labels ──────────────────────────────────────────────────────────────
 const files = 'abcdefgh';
@@ -248,16 +283,31 @@ function render() {
 
   // status
   const msg = document.getElementById('statusMsg');
-  if (state.is_over) {
-    msg.textContent = '🏁 Game over';
-    msg.className = 'status-msg warn';
-  } else {
-    msg.textContent = '';
-    msg.className = 'status-msg';
-  }
+  msg.textContent = '';
+  msg.className = 'status-msg';
 
   const engineBtn = document.getElementById('enginePlayBtn');
   engineBtn.disabled = mode !== 'engine' || state.is_over || busy;
+
+  // Win overlay
+  if (state.is_over) {
+    const title = document.getElementById('winTitle');
+    const sub   = document.getElementById('winSub');
+    if (state.result_type === 'stalemate') {
+      title.textContent = 'Draw';
+      sub.textContent   = 'Stalemate — no legal moves.';
+    } else if (state.winner) {
+      const who = state.winner === 'w' ? 'White' : 'Black';
+      title.textContent = `${who} wins!`;
+      sub.textContent   = 'Checkmate.';
+    } else {
+      title.textContent = 'Game over';
+      sub.textContent   = '';
+    }
+    document.getElementById('winOverlay').className = 'win-overlay show';
+  } else {
+    document.getElementById('winOverlay').className = 'win-overlay';
+  }
 }
 
 // ── interaction ───────────────────────────────────────────────────────────────
@@ -269,11 +319,16 @@ function handleClick(key) {
 
   if (selected) {
     if (legalFromSelected.includes(key)) {
-      // It's a legal move — send it
       const [fr, fc] = selected.split(',').map(Number);
       const [tr, tc] = key.split(',').map(Number);
       const uci = files[fc] + ranks[fr] + files[tc] + ranks[tr];
-      sendMove(uci);
+      const movingPiece = state.squares[selected];
+      const isPromo = movingPiece && movingPiece[1] === 'P' && ((movingPiece[0] === 'w' && tr === 0) || (movingPiece[0] === 'b' && tr === 7));
+      if (isPromo) {
+        showPromoPicker(uci, movingPiece[0]);
+      } else {
+        sendMove(uci);
+      }
       selected = null; legalFromSelected = [];
       return;
     }
@@ -317,6 +372,32 @@ async function loadState() {
   if (data) { state = data; render(); }
 }
 
+function showPromoPicker(baseUci, color) {
+  pendingPromoUci = baseUci;
+  const pieces = document.getElementById('promoPieces');
+  pieces.innerHTML = '';
+  const options = [
+    { letter: 'q', glyph: color === 'w' ? '♛' : '♛' },
+    { letter: 'r', glyph: '♜' },
+    { letter: 'b', glyph: '♝' },
+    { letter: 'n', glyph: '♞' },
+  ];
+  for (const { letter, glyph } of options) {
+    const btn = document.createElement('div');
+    btn.className = 'promo-piece ' + (color === 'w' ? 'white' : 'black');
+    btn.textContent = glyph;
+    btn.style.color = color === 'w' ? '#fff' : '#1a1a18';
+    btn.style.webkitTextStroke = color === 'b' ? '1px #1a1a18' : '';
+    btn.onclick = () => {
+      document.getElementById('promoOverlay').className = 'promo-overlay';
+      sendMove(pendingPromoUci + letter);
+      pendingPromoUci = null;
+    };
+    pieces.appendChild(btn);
+  }
+  document.getElementById('promoOverlay').className = 'promo-overlay show';
+}
+
 async function sendMove(uci) {
   const data = await api('/move', { move: uci, mode: lightning ? 'lightning' : 'normal' });
   if (data) { state = data; render(); }
@@ -335,6 +416,7 @@ function toggleLightning() {
 
 async function resetGame() {
   selected = null; legalFromSelected = [];
+  document.getElementById('winOverlay').className = 'win-overlay';
   const data = await api('/reset', {});
   if (data) { state = data; render(); }
 }

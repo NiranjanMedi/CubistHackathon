@@ -64,17 +64,32 @@ def _reset():
     _history = []
 
 
+def _game_result(board: Board):
+    """Returns (winner_color_or_None, 'checkmate'|'stalemate'|None)."""
+    legal = board.legal_moves()
+    if legal:
+        return None, None
+    kr, kc = board.find_king(board.turn)
+    opp = 'b' if board.turn == 'w' else 'w'
+    if board.is_attacked(kr, kc, opp):
+        return opp, 'checkmate'
+    return None, 'stalemate'
+
+
 # ── routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/api/state", methods=["GET"])
 def get_state():
     """Return current board + whose turn + move history."""
     legal = [move_to_uci(m) for m in _board.legal_moves()]
+    winner, result_type = _game_result(_board)
     return jsonify({
         **board_to_dict(_board),
         "history": _history,
         "legal_moves": legal,
         "is_over": len(legal) == 0,
+        "winner": winner,
+        "result_type": result_type,
     })
 
 
@@ -83,7 +98,7 @@ def reset():
     """Start a fresh game."""
     _reset()
     legal = [move_to_uci(m) for m in _board.legal_moves()]
-    return jsonify({"ok": True, **board_to_dict(_board), "history": [], "legal_moves": legal, "is_over": False})
+    return jsonify({"ok": True, **board_to_dict(_board), "history": [], "legal_moves": legal, "is_over": False, "winner": None, "result_type": None})
 
 
 @app.route("/api/move", methods=["POST"])
@@ -127,8 +142,11 @@ def human_move():
             result.update(board_to_dict(_board))
             result["history"] = _history
 
-    result["is_over"]     = len(_board.legal_moves()) == 0
+    winner, result_type = _game_result(_board)
+    result["is_over"]     = winner is not None or result_type == 'stalemate'
     result["legal_moves"] = [move_to_uci(m) for m in _board.legal_moves()]
+    result["winner"]      = winner
+    result["result_type"] = result_type
     return jsonify(result)
 
 
@@ -145,12 +163,15 @@ def engine_move():
     _board.make_move(em)
     _history.append(euci)
 
+    winner, result_type = _game_result(_board)
     return jsonify({
         "engine_move": euci,
         **board_to_dict(_board),
         "history": _history,
-        "is_over":     len(_board.legal_moves()) == 0,
+        "is_over":     winner is not None or result_type == 'stalemate',
         "legal_moves": [move_to_uci(m) for m in _board.legal_moves()],
+        "winner":      winner,
+        "result_type": result_type,
     })
 
 
