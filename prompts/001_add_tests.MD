@@ -95,3 +95,26 @@ Print an aggregate score like:
 
 Engine move-choice score: 9/12
 Passed unit tests: 24/27
+
+---
+
+# Commit b2def67 — random noise and niche openings
+
+## Date
+2026-04-25
+
+## Tool
+Claude Code VSCode Extension
+
+## Goal
+Add opening book variety and a "lightning" mode with randomized eval noise to make the engine less predictable and more entertaining.
+
+## Prompts Used
+
+1. Add an unusual opening book to the chess engine. Use niche, uncommon openings (e.g. Grob's Attack, Owen's Defense, Dutch-ish lines) that casual players won't recognize. Key the book on move history tuples so the engine can look up its reply by the sequence of moves played so far.
+
+2. Add a `noise` parameter to the negamax search that adds a small random offset to leaf-node evaluations, making the engine play more variably. Pass noise through the recursive calls so it applies consistently.
+
+3. Add a "lightning mode" toggle to the UI (⚡ Frolicking Lightning button). When enabled, send `mode: "lightning"` in API requests. In the server, use this flag to enable both the opening book and noise (value: 80) when calling `best_move`.
+
+4. Wire up the `history` list in the server so `best_move` receives the move history for opening book lookups when lightning mode is active.
