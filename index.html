@@ -15,7 +15,7 @@
   --sq-legal: rgba(20,85,30,0.45);
   --bg: #1a1a18; --panel-bg: #242421; --card-bg: #2e2e2a;
   --border: #3a3a35; --text: #e8e4d8; --muted: #888880;
-  --accent: #c8a96e; --danger: #c06040;
+  --accent: #c8a96e; --danger: #c06040; --lightning: #f0c030;
   --font-display: 'Playfair Display', serif;
   --font-mono: 'DM Mono', monospace;
   --sq: 68px;
@@ -67,6 +67,9 @@ button:hover { background: var(--panel-bg); }
 button:active { transform: scale(0.97); }
 button.accent { background: var(--accent); color: #1a1a18; border-color: var(--accent); font-weight: 500; }
 button.accent:hover { opacity: 0.85; }
+button.lightning { background: var(--lightning); color: #1a1a18; border-color: var(--lightning); font-weight: 500; }
+button.lightning:hover { opacity: 0.85; }
+button.lightning-off { border-color: var(--lightning); color: var(--lightning); }
 button.danger { border-color: var(--danger); color: var(--danger); }
 button:disabled { opacity: 0.35; cursor: not-allowed; }
 
@@ -132,6 +135,10 @@ button:disabled { opacity: 0.35; cursor: not-allowed; }
       <button id="enginePlayBtn" onclick="engineStep()" disabled>Engine step</button>
     </div>
 
+    <div class="btn-row">
+      <button id="lightningBtn" class="lightning-off" onclick="toggleLightning()">⚡ Frolicking Lightning</button>
+    </div>
+
     <div class="spinner" id="spinner">Engine thinking…</div>
     <div class="status-msg" id="statusMsg"></div>
 
@@ -153,6 +160,7 @@ let state = { squares:{}, turn:'w', history:[], legal_moves:[], is_over:false };
 let selected = null;   // "r,c" string of selected square
 let legalFromSelected = [];
 let mode = 'human';    // 'human' | 'engine'
+let lightning = false;
 let busy = false;
 
 // ── board labels ──────────────────────────────────────────────────────────────
@@ -310,13 +318,19 @@ async function loadState() {
 }
 
 async function sendMove(uci) {
-  const data = await api('/move', { move: uci });
+  const data = await api('/move', { move: uci, mode: lightning ? 'lightning' : 'normal' });
   if (data) { state = data; render(); }
 }
 
 async function engineStep() {
-  const data = await api('/engine_move', {});
+  const data = await api('/engine_move', { mode: lightning ? 'lightning' : 'normal' });
   if (data) { state = data; render(); }
+}
+
+function toggleLightning() {
+  lightning = !lightning;
+  const btn = document.getElementById('lightningBtn');
+  btn.className = lightning ? 'lightning' : 'lightning-off';
 }
 
 async function resetGame() {

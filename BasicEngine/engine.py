@@ -3,6 +3,32 @@ from .board import Board, Move
 
 PIECE_VALUES = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 20000}
 
+# Unusual opening book keyed by move history tuple → UCI reply.
+# Lines chosen to be unfamiliar to casual players.
+OPENING_BOOK: dict[tuple, str] = {
+    # Grob's Attack (White): 1.g4
+    (): 'g2g4',
+    # After 1.g4 d5: 2.h3 (Grob sideline)
+    ('g2g4', 'd7d5'): 'h2h3',
+    ('g2g4', 'e7e5'): 'h2h3',
+    ('g2g4', 'c7c5'): 'h2h3',
+    # After 1.g4 d5 2.h3 e5: 3.Bg2
+    ('g2g4', 'd7d5', 'h2h3', 'e7e5'): 'f1g2',
+    ('g2g4', 'e7e5', 'h2h3', 'd7d5'): 'f1g2',
+    # Black Owen's Defense replies to 1.e4 and 1.d4
+    ('e2e4',): 'b7b6',
+    ('d2d4',): 'f7f5',
+    ('c2c4',): 'b7b6',
+    ('b2b4',): 'e7e5',
+    # After 1.e4 b6: 2...Bb7 when white plays d4
+    ('e2e4', 'b7b6', 'd2d4'): 'c8b7',
+    # After 1.d4 f5: Dutch-ish 2...Nf6
+    ('d2d4', 'f7f5', 'c2c4'): 'g8f6',
+    ('d2d4', 'f7f5', 'g1f3'): 'g8f6',
+    # Nimzo-Larsen (White): 1.b3
+    # (alternate line if White has not moved yet — covered by () above as g4)
+}
+
 # Piece-square tables from white's perspective (row 0 = rank 8, row 7 = rank 1).
 # For black, flip vertically: use table[7 - r][c].
 PST = {
@@ -103,10 +129,12 @@ def _order_moves(board: Board, moves):
     return sorted(moves, key=key)
 
 
-def _negamax(board: Board, depth: int, alpha: int, beta: int) -> int:
+def _negamax(board: Board, depth: int, alpha: int, beta: int, noise: int = 0) -> int:
     """Negamax with alpha-beta. Score is from the current player's perspective."""
     if depth == 0:
         score = evaluate(board)
+        if noise:
+            score += random.randint(-noise, noise)
         return score if board.turn == 'w' else -score
 
     moves = board.legal_moves()
@@ -120,7 +148,7 @@ def _negamax(board: Board, depth: int, alpha: int, beta: int) -> int:
     for m in _order_moves(board, moves):
         nb = board.copy()
         nb.make_move(m)
-        score = -_negamax(nb, depth - 1, -beta, -alpha)
+        score = -_negamax(nb, depth - 1, -beta, -alpha, noise)
         if score >= beta:
             return beta
         if score > alpha:
@@ -128,7 +156,15 @@ def _negamax(board: Board, depth: int, alpha: int, beta: int) -> int:
     return alpha
 
 
-def best_move(board: Board, depth: int = 3) -> Move:
+def best_move(board: Board, depth: int = 3, history: list = None, noise: int = 0) -> Move:
+    # Check opening book first
+    if history is not None:
+        book_uci = OPENING_BOOK.get(tuple(history))
+        if book_uci:
+            legal_ucis = {_move_to_uci_key(m): m for m in board.legal_moves()}
+            if book_uci in legal_ucis:
+                return legal_ucis[book_uci]
+
     moves = board.legal_moves()
     if not moves:
         return None
@@ -140,7 +176,7 @@ def best_move(board: Board, depth: int = 3) -> Move:
     for m in _order_moves(board, moves):
         nb = board.copy()
         nb.make_move(m)
-        score = -_negamax(nb, depth - 1, -INF, -alpha)
+        score = -_negamax(nb, depth - 1, -INF, -alpha, noise)
         if score > best_score:
             best_score = score
             best_m = m
@@ -148,6 +184,15 @@ def best_move(board: Board, depth: int = 3) -> Move:
             alpha = score
 
     return best_m
+
+
+def _move_to_uci_key(m: Move) -> str:
+    files = 'abcdefgh'
+    ranks = '87654321'
+    s = files[m.from_col] + ranks[m.from_row] + files[m.to_col] + ranks[m.to_row]
+    if m.promotion:
+        s += m.promotion.lower()
+    return s
 
 
 def random_move(board: Board) -> Move:
