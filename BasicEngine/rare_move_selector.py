@@ -28,6 +28,8 @@ class MoveFeatures:
     legal_replies_after: int
     ambiguity_score: float
     surprise_shape_score: float
+    rarity_score: float
+    naturalness_score: float
     final_score: float
     tags: tuple[str, ...]
 
@@ -86,38 +88,67 @@ def _creates_threat(before: Board, after: Board, moving_color: str) -> bool:
     return delta > 80 if moving_color == 'w' else delta < -80
 
 
-def _move_shape_score(board: Board, move: Move, is_capture: bool, gives_check: bool) -> tuple[float, list[str]]:
+def _move_shape_score(board: Board, move: Move, is_capture: bool, gives_check: bool) -> tuple[float, float, list[str]]:
     piece = board.squares[move.from_row][move.from_col]
     color, kind = piece[0], piece[1]
     tags = []
-    score = 0.0
+    rarity = 0.0
+    naturalness = 0.0
+
+    legal_captures = any(_is_capture(board, legal) for legal in board.legal_moves())
 
     if not is_capture and not gives_check:
-        score += 0.20
+        rarity += 0.18
         tags.append("quiet")
+    if legal_captures and not is_capture:
+        rarity += 0.20
+        tags.append("declines available capture")
     if kind in ("Q", "R") and not is_capture:
-        score += 0.16
+        rarity += 0.18
         tags.append("quiet major-piece move")
     if kind in ("N", "B") and move.to_col in (0, 7):
-        score += 0.12
+        rarity += 0.14
         tags.append("rim maneuver")
     if color == 'w' and move.to_row > move.from_row:
-        score += 0.14
+        rarity += 0.18
         tags.append("backward move")
     if color == 'b' and move.to_row < move.from_row:
-        score += 0.14
+        rarity += 0.18
         tags.append("backward move")
+    if kind in ("Q", "R") and move.to_row == move.from_row and not is_capture:
+        rarity += 0.12
+        tags.append("lateral major-piece move")
     if kind == 'P' and move.to_col in (0, 7):
-        score += 0.08
+        rarity += 0.10
         tags.append("edge pawn")
     if kind == 'K' and abs(move.to_col - move.from_col) != 2:
-        score -= 0.20
-        tags.append("king move penalty")
+        rarity += 0.10
+        naturalness += 0.18
+        tags.append("unusual king move")
     if kind in ("N", "B") and abs(move.to_row - move.from_row) + abs(move.to_col - move.from_col) > 3:
-        score += 0.08
+        rarity += 0.10
         tags.append("piece reroute")
 
-    return max(0.0, min(1.0, score)), tags
+    # Obvious or textbook-looking moves are less novel even when good.
+    if is_capture:
+        naturalness += 0.28
+        tags.append("obvious capture penalty")
+    if gives_check:
+        naturalness += 0.24
+        tags.append("obvious check penalty")
+    if kind == 'P' and move.from_col in (3, 4) and abs(move.to_row - move.from_row) in (1, 2):
+        naturalness += 0.20
+        tags.append("central pawn move penalty")
+    start_row = 7 if color == 'w' else 0
+    if kind in ("N", "B") and move.from_row == start_row and move.to_col in (2, 3, 4, 5):
+        naturalness += 0.24
+        tags.append("natural development penalty")
+    if kind == 'K' and abs(move.to_col - move.from_col) == 2:
+        naturalness += 0.18
+        tags.append("castling penalty")
+
+    rarity_score = max(0.0, min(1.0, rarity - naturalness * 0.65))
+    return rarity_score, min(1.0, naturalness), tags
 
 
 def _queen_trade(board: Board, move: Move) -> bool:
@@ -156,13 +187,15 @@ def extract_move_features(
     quiet_threat = creates_threat and not is_capture and not gives_check
     legal_replies_after = len(after.legal_moves())
     cp_loss = best_score - engine_score
-    surprise_shape_score, tags = _move_shape_score(board, move, is_capture, gives_check)
+    rarity_score, naturalness_score, tags = _move_shape_score(board, move, is_capture, gives_check)
+    surprise_shape_score = rarity_score
 
     if creates_threat:
         tags.append("creates threat")
     if attacks_higher:
         tags.append("attacks higher-value piece")
     if quiet_threat:
+        rarity_score = min(1.0, rarity_score + 0.18)
         tags.append("quiet threat")
 
     ambiguity_score = min(1.0, (
@@ -181,10 +214,14 @@ def extract_move_features(
         tags.append("simplifying capture penalty")
 
     normalized_engine = 1.0 - min(1.0, cp_loss / max(1, max_cp_loss))
+    if cp_loss > max_cp_loss * 0.75:
+        rarity_score = max(0.0, rarity_score - 0.12)
+        tags.append("near soundness limit")
+
     final_score = (
-        0.55 * normalized_engine
-        + 0.30 * ambiguity_score
-        + 0.15 * surprise_shape_score
+        0.35 * normalized_engine
+        + 0.45 * rarity_score
+        + 0.20 * ambiguity_score
     )
 
     return MoveFeatures(
@@ -203,6 +240,8 @@ def extract_move_features(
         legal_replies_after=legal_replies_after,
         ambiguity_score=ambiguity_score,
         surprise_shape_score=surprise_shape_score,
+        rarity_score=rarity_score,
+        naturalness_score=naturalness_score,
         final_score=final_score,
         tags=tuple(tags),
     )
@@ -213,7 +252,7 @@ def select_rare_move(
     scored_moves: Optional[dict[Move, int]] = None,
     max_cp_loss: int = 120,
 ) -> Tuple[Optional[Move], Optional[MoveFeatures], list[MoveFeatures]]:
-    """Pick the safest high-pressure unusual move, or None if no alternative exists."""
+    """Pick a rare/unorthodox but base-engine-safe move."""
     scored = scored_moves if scored_moves is not None else score_legal_moves(board, depth=3)
     if not scored:
         return None, None, []
@@ -229,9 +268,18 @@ def select_rare_move(
         extract_move_features(board, move, score, best_score, max_cp_loss)
         for move, score in candidates.items()
     ]
-    features.sort(key=lambda item: (item.final_score, -item.cp_loss, str(item.move)), reverse=True)
+    features.sort(
+        key=lambda item: (
+            item.final_score,
+            item.rarity_score,
+            item.ambiguity_score,
+            -item.cp_loss,
+            str(item.move),
+        ),
+        reverse=True,
+    )
 
     for item in features:
-        if item.move != base_move and item.final_score >= 0.58:
+        if item.move != base_move and item.rarity_score >= 0.22 and item.final_score >= 0.48:
             return item.move, item, features
     return base_move, next((item for item in features if item.move == base_move), None), features

@@ -153,7 +153,7 @@ class TestRareMoveSelector(unittest.TestCase):
         self.assertNotIn(bad, feature_moves)
         self.assertIn(selected, {best, ok})
 
-    def test_prefers_safe_structural_surprise_when_available(self):
+    def test_prefers_safe_structural_rarity_when_available(self):
         board = empty_board({
             "g1": "wK",
             "d1": "wQ",
@@ -172,6 +172,23 @@ class TestRareMoveSelector(unittest.TestCase):
 
         self.assertIn(selected, {quiet_major, obvious})
         self.assertIsNotNone(features)
+        self.assertLessEqual(features.cp_loss, 120)
+        self.assertGreaterEqual(features.rarity_score, 0.0)
+
+    def test_rare_move_can_beat_higher_scored_textbook_move(self):
+        board = Board()
+        rare_edge_move = parse_uci("h2h4")
+        natural_development = parse_uci("g1f3")
+
+        selected, features, _all_features = select_rare_move(
+            board,
+            scored_moves={natural_development: 100, rare_edge_move: 95},
+            max_cp_loss=120,
+        )
+
+        self.assertEqual(selected, rare_edge_move)
+        self.assertIsNotNone(features)
+        self.assertGreater(features.rarity_score, 0.0)
         self.assertLessEqual(features.cp_loss, 120)
 
 

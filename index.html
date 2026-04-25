@@ -115,7 +115,7 @@ button:disabled { opacity: 0.35; cursor: not-allowed; }
 
 <header>
   <h1>Pressure Novelty Engine</h1>
-  <p>tactical pressure · ambiguity-preserving novelty</p>
+  <p>rare move selection · soundness-gated novelty</p>
 </header>
 
 <div class="layout">
@@ -285,8 +285,9 @@ function render() {
   const msg = document.getElementById('statusMsg');
   if (state.engine_move && state.engine_mode) {
     const critical = state.critical_score !== undefined ? ` · critical ${state.critical_score.toFixed(2)}` : '';
+    const rarity = state.rarity_score !== undefined ? ` · rarity ${state.rarity_score.toFixed(2)}` : '';
     const loss = state.cp_loss !== undefined ? ` · loss ${state.cp_loss}cp` : '';
-    msg.textContent = `Engine used ${state.engine_mode} mode${critical}${loss}`;
+    msg.textContent = `Engine used ${state.engine_mode} mode${critical}${rarity}${loss}`;
   } else {
     msg.textContent = '';
   }

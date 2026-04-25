@@ -94,9 +94,13 @@ class PressureNoveltyEngine:
 
         mode = "novelty" if selected != base else "base"
         if mode == "novelty":
-            reason = f"pressure novelty: {', '.join(features.tags) or 'ambiguity-preserving move'}"
+            reason = (
+                f"rare safe move: rarity={features.rarity_score:.2f}, "
+                f"loss={features.cp_loss}cp; "
+                f"{', '.join(features.tags) or 'unorthodox candidate'}"
+            )
         else:
-            reason = "critical position, but base move remained best pressure candidate"
+            reason = "critical position, but no safe rare move beat the base move"
 
         return NoveltyDecision(
             move=selected,

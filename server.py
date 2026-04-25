@@ -154,6 +154,10 @@ def human_move():
             result["novelty_score"] = decision.novelty_score
             result["cp_loss"] = decision.cp_loss
             result["tags"] = list(decision.tags)
+            result["rarity_score"] = (
+                decision.selected_features.rarity_score
+                if decision.selected_features else 0.0
+            )
             result.update(board_to_dict(_board))
             result["history"] = _history
 
@@ -189,6 +193,10 @@ def engine_move():
         "novelty_score": decision.novelty_score,
         "cp_loss": decision.cp_loss,
         "tags": list(decision.tags),
+        "rarity_score": (
+            decision.selected_features.rarity_score
+            if decision.selected_features else 0.0
+        ),
         **board_to_dict(_board),
         "history": _history,
         "is_over":     winner is not None or result_type == 'stalemate',
