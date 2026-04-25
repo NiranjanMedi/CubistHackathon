@@ -1,5 +1,5 @@
 import random
-from board import Board, Move
+from .board import Board, Move
 
 PIECE_VALUES = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 20000}
 

@@ -1,4 +1,4 @@
-from board import Board
+from .board import Board
 from engine import best_move
 
 
