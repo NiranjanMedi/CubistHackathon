@@ -1,15 +1,15 @@
 from board import Board
-from engine import random_move
+from engine import best_move
 
 
-def play_random_game(max_plies=200):
+def play_game(max_plies=200):
     board = Board()
     history = []
     print(board)
     print()
 
     for ply in range(max_plies):
-        move = random_move(board)
+        move = best_move(board)
         if move is None:
             kr, kc = board.find_king(board.turn)
             opponent = 'b' if board.turn == 'w' else 'w'
@@ -36,4 +36,4 @@ def play_random_game(max_plies=200):
 
 
 if __name__ == '__main__':
-    play_random_game()
+    play_game()
