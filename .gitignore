@@ -1,3 +1,9 @@
 .idea
 __pycache__/
 *.pyc
+lichess-bot/
+.claude/
+.codex/
+sunfish/
+SunfishNovelty/
+tests/
