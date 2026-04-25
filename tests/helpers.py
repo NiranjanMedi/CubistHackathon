@@ -10,6 +10,8 @@ def pos(pieces: dict, turn: str = 'w') -> Board:
     b = Board.__new__(Board)
     b.squares = [[EMPTY] * 8 for _ in range(8)]
     b.turn = turn
+    b.castling = {'wK': False, 'wQ': False, 'bK': False, 'bQ': False}
+    b.en_passant = None
     for sq, piece in pieces.items():
         col = ord(sq[0]) - ord('a')
         row = 8 - int(sq[1])
