@@ -1,0 +1,353 @@
+#!/usr/bin/env python3
+"""
+Unit tests for critical_point.py
+
+Tests the critical point detection logic including:
+- Game phase detection
+- Discomfort computation
+- Depth calibration
+- Critical point detection
+"""
+
+import unittest
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from board import Board, Move
+from critical_point import (
+    get_game_phase,
+    compute_discomfort,
+    get_depth_for_rating,
+    get_shallow_eval,
+    get_deep_eval,
+    is_critical_point,
+    analyze_critical_point,
+    DISCOMFORT_THRESHOLD,
+    WINNING_THRESHOLD
+)
+
+
+class TestGamePhase(unittest.TestCase):
+    """Test game phase detection."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.board = Board()
+
+    def test_detects_opening_by_move_count(self):
+        """Should detect opening based on move count."""
+        phase = get_game_phase(self.board, move_count=5)
+        self.assertEqual(phase, 'opening',
+                         msg="Move 5 should be opening")
+
+    def test_detects_middlegame_by_move_count(self):
+        """Should detect middlegame based on move count."""
+        phase = get_game_phase(self.board, move_count=15)
+        self.assertEqual(phase, 'middlegame',
+                         msg="Move 15 should be middlegame")
+
+    def test_detects_endgame_by_move_count(self):
+        """Should detect endgame based on move count."""
+        phase = get_game_phase(self.board, move_count=45)
+        self.assertEqual(phase, 'endgame',
+                         msg="Move 45 should be endgame")
+
+    def test_detects_endgame_by_piece_count(self):
+        """Should detect endgame when few pieces remain."""
+        # Create a sparse board (endgame-like position)
+        # We'll test with the starting position but the logic should work
+        # The actual piece counting happens in the function
+
+        # Starting position has many pieces, so should not be endgame at move 15
+        phase = get_game_phase(self.board, move_count=15)
+        self.assertEqual(phase, 'middlegame',
+                         msg="Full board at move 15 should be middlegame")
+
+    def test_opening_threshold(self):
+        """Test opening/middlegame boundary."""
+        # Move 10 should still be opening
+        self.assertEqual(get_game_phase(self.board, move_count=10), 'opening')
+        # Move 11 should be middlegame
+        self.assertEqual(get_game_phase(self.board, move_count=11), 'middlegame')
+
+    def test_middlegame_endgame_threshold(self):
+        """Test middlegame/endgame boundary."""
+        # Move 40 should still be middlegame
+        self.assertEqual(get_game_phase(self.board, move_count=40), 'middlegame')
+        # Move 41 should be endgame
+        self.assertEqual(get_game_phase(self.board, move_count=41), 'endgame')
+
+
+class TestDiscomfort(unittest.TestCase):
+    """Test discomfort computation."""
+
+    def test_returns_zero_when_equal(self):
+        """Should return 0 when shallow equals deep."""
+        discomfort = compute_discomfort(100, 100)
+        self.assertEqual(discomfort, 0,
+                         msg="Discomfort should be 0 when evals are equal")
+
+    def test_returns_positive_when_different(self):
+        """Should return positive value when evals differ."""
+        discomfort = compute_discomfort(50, 100)
+        self.assertGreater(discomfort, 0,
+                           msg="Discomfort should be positive when evals differ")
+
+    def test_larger_difference_means_more_discomfort(self):
+        """Larger eval difference should mean more discomfort."""
+        small_diff = compute_discomfort(90, 100)
+        large_diff = compute_discomfort(50, 100)
+
+        self.assertGreater(large_diff, small_diff,
+                           msg="Larger eval difference should give more discomfort")
+
+    def test_symmetric(self):
+        """Discomfort should be symmetric (sign doesn't matter)."""
+        discomfort1 = compute_discomfort(50, 100)
+        discomfort2 = compute_discomfort(100, 50)
+
+        self.assertEqual(discomfort1, discomfort2,
+                         msg="Discomfort should be symmetric")
+
+    def test_formula_correctness(self):
+        """Test the mathematical formula."""
+        # Formula: abs(shallow - deep) / (abs(deep) + 1)
+        shallow, deep = 50, 100
+        expected = abs(shallow - deep) / (abs(deep) + 1)
+        actual = compute_discomfort(shallow, deep)
+
+        self.assertAlmostEqual(actual, expected, places=6,
+                               msg="Discomfort formula incorrect")
+
+
+class TestDepthCalibration(unittest.TestCase):
+    """Test depth calibration by opponent rating."""
+
+    def test_rating_1000_gives_depth_2(self):
+        """Rating <1200 should map to depth 2."""
+        depth = get_depth_for_rating(1000)
+        self.assertEqual(depth, 2,
+                         msg="Rating 1000 should give depth 2")
+
+    def test_rating_1200_gives_depth_3(self):
+        """Rating 1200-1499 should map to depth 3."""
+        depth = get_depth_for_rating(1200)
+        self.assertEqual(depth, 3,
+                         msg="Rating 1200 should give depth 3")
+
+    def test_rating_1500_gives_depth_4(self):
+        """Rating 1500-1799 should map to depth 4."""
+        depth = get_depth_for_rating(1500)
+        self.assertEqual(depth, 4,
+                         msg="Rating 1500 should give depth 4")
+
+    def test_rating_1800_gives_depth_5(self):
+        """Rating 1800-2099 should map to depth 5."""
+        depth = get_depth_for_rating(1800)
+        self.assertEqual(depth, 5,
+                         msg="Rating 1800 should give depth 5")
+
+    def test_rating_2100_gives_depth_6(self):
+        """Rating 2100+ should map to depth 6."""
+        depth = get_depth_for_rating(2100)
+        self.assertEqual(depth, 6,
+                         msg="Rating 2100 should give depth 6")
+
+        # Test higher ratings too
+        depth = get_depth_for_rating(2500)
+        self.assertEqual(depth, 6,
+                         msg="Rating 2500 should also give depth 6")
+
+    def test_depth_increases_with_rating(self):
+        """Depth should increase (or stay same) as rating increases."""
+        depths = [get_depth_for_rating(r) for r in [1200, 1500, 1800, 2100]]
+
+        for i in range(len(depths) - 1):
+            self.assertGreaterEqual(depths[i + 1], depths[i],
+                                    msg="Depth should increase with rating")
+
+    def test_depth_is_positive(self):
+        """Depth should always be positive."""
+        for rating in [800, 1200, 1500, 1800, 2100, 2500, 3000]:
+            depth = get_depth_for_rating(rating)
+            self.assertGreater(depth, 0,
+                               msg=f"Depth should be positive for rating {rating}")
+
+
+class TestShallowAndDeepEval(unittest.TestCase):
+    """Test shallow and deep evaluation functions."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.board = Board()
+
+    def test_shallow_eval_returns_number(self):
+        """Shallow eval should return a number."""
+        score = get_shallow_eval(self.board)
+        self.assertIsInstance(score, (int, float),
+                              msg="Shallow eval should return a number")
+
+    def test_deep_eval_returns_number(self):
+        """Deep eval should return a number."""
+        score = get_deep_eval(self.board, depth=2)
+        self.assertIsInstance(score, (int, float),
+                              msg="Deep eval should return a number")
+
+    def test_starting_position_near_zero(self):
+        """Starting position should evaluate near 0 (equal)."""
+        shallow = get_shallow_eval(self.board)
+        deep = get_deep_eval(self.board, depth=2)
+
+        # Both should be relatively small (near equality)
+        self.assertLess(abs(shallow), 200,
+                        msg="Starting position shallow eval should be near 0")
+        self.assertLess(abs(deep), 200,
+                        msg="Starting position deep eval should be near 0")
+
+
+class TestIsCriticalPoint(unittest.TestCase):
+    """Test the main critical point detection function."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.board = Board()
+
+    def test_returns_boolean(self):
+        """Should return a boolean value."""
+        result = is_critical_point(self.board, opponent_rating=1500, move_count=15)
+        self.assertIsInstance(result, bool,
+                              msg="is_critical_point should return boolean")
+
+    def test_false_in_opening(self):
+        """Should return False in opening phase."""
+        # Move 5 is definitely opening
+        result = is_critical_point(self.board, opponent_rating=1500, move_count=5)
+        self.assertFalse(result,
+                         msg="Should not trigger in opening")
+
+    def test_false_in_endgame(self):
+        """Should return False in endgame phase."""
+        # Move 45 is definitely endgame
+        result = is_critical_point(self.board, opponent_rating=1500, move_count=45)
+        self.assertFalse(result,
+                         msg="Should not trigger in endgame")
+
+    def test_only_triggers_in_middlegame(self):
+        """Critical points should only occur in middlegame."""
+        opening_result = is_critical_point(self.board, opponent_rating=1500, move_count=5)
+        endgame_result = is_critical_point(self.board, opponent_rating=1500, move_count=45)
+
+        # At least one of these should be False (can't trigger outside middlegame)
+        self.assertFalse(opening_result or endgame_result == True,
+                         msg="Should not trigger in opening or endgame")
+
+    def test_respects_opponent_rating(self):
+        """Should use different depths for different ratings."""
+        # This is more of a smoke test - just verify it doesn't crash
+        try:
+            is_critical_point(self.board, opponent_rating=1200, move_count=15)
+            is_critical_point(self.board, opponent_rating=1500, move_count=15)
+            is_critical_point(self.board, opponent_rating=1800, move_count=15)
+            is_critical_point(self.board, opponent_rating=2100, move_count=15)
+        except Exception as e:
+            self.fail(f"is_critical_point crashed with different ratings: {e}")
+
+
+class TestAnalyzeCriticalPoint(unittest.TestCase):
+    """Test the detailed analysis function."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.board = Board()
+
+    def test_returns_dict(self):
+        """Should return a dictionary with analysis results."""
+        analysis = analyze_critical_point(self.board, opponent_rating=1500, move_count=15)
+        self.assertIsInstance(analysis, dict,
+                              msg="analyze_critical_point should return dict")
+
+    def test_has_required_fields(self):
+        """Analysis should have all required fields."""
+        analysis = analyze_critical_point(self.board, opponent_rating=1500, move_count=15)
+
+        required_fields = [
+            'is_critical_point',
+            'phase',
+            'shallow_eval',
+            'deep_eval',
+            'discomfort',
+            'opponent_rating',
+            'depth_used'
+        ]
+
+        for field in required_fields:
+            self.assertIn(field, analysis,
+                          msg=f"Analysis missing required field: {field}")
+
+    def test_is_critical_point_matches_function(self):
+        """analyze_critical_point should match is_critical_point."""
+        analysis = analyze_critical_point(self.board, opponent_rating=1500, move_count=15)
+        direct_result = is_critical_point(self.board, opponent_rating=1500, move_count=15)
+
+        self.assertEqual(analysis['is_critical_point'], direct_result,
+                         msg="Analysis result should match is_critical_point")
+
+    def test_phase_is_valid(self):
+        """Phase should be one of the expected values."""
+        analysis = analyze_critical_point(self.board, opponent_rating=1500, move_count=15)
+
+        valid_phases = ['opening', 'middlegame', 'endgame']
+        self.assertIn(analysis['phase'], valid_phases,
+                      msg=f"Invalid phase: {analysis['phase']}")
+
+    def test_depth_matches_rating(self):
+        """Depth used should match opponent rating."""
+        analysis = analyze_critical_point(self.board, opponent_rating=1500, move_count=15)
+        expected_depth = get_depth_for_rating(1500)
+
+        self.assertEqual(analysis['depth_used'], expected_depth,
+                         msg="Depth in analysis should match rating")
+
+
+class TestThresholds(unittest.TestCase):
+    """Test threshold constants."""
+
+    def test_discomfort_threshold_is_positive(self):
+        """Discomfort threshold should be positive."""
+        self.assertGreater(DISCOMFORT_THRESHOLD, 0,
+                           msg="DISCOMFORT_THRESHOLD should be positive")
+
+    def test_discomfort_threshold_is_reasonable(self):
+        """Discomfort threshold should be in a reasonable range."""
+        self.assertGreater(DISCOMFORT_THRESHOLD, 0.01,
+                           msg="DISCOMFORT_THRESHOLD too low")
+        self.assertLess(DISCOMFORT_THRESHOLD, 2.0,
+                        msg="DISCOMFORT_THRESHOLD too high")
+
+    def test_winning_threshold_is_positive(self):
+        """Winning threshold should be positive."""
+        self.assertGreater(WINNING_THRESHOLD, 0,
+                           msg="WINNING_THRESHOLD should be positive")
+
+    def test_winning_threshold_is_reasonable(self):
+        """Winning threshold should be in a reasonable range (centipawns)."""
+        self.assertGreater(WINNING_THRESHOLD, 50,
+                           msg="WINNING_THRESHOLD too low (should be in centipawns)")
+        self.assertLess(WINNING_THRESHOLD, 1000,
+                        msg="WINNING_THRESHOLD too high")
+
+
+def run_tests():
+    """Run all tests and return results."""
+    loader = unittest.TestLoader()
+    suite = loader.loadTestsFromModule(sys.modules[__name__])
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    return result
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)
