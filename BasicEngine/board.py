@@ -43,8 +43,6 @@ class Board:
     def __init__(self):
         self.squares = starting_squares()
         self.turn = 'w'
-        self.castling = {'wK': True, 'wQ': True, 'bK': True, 'bQ': True}
-        self.en_passant = None  # (row, col) of ep target square or None
 
     def __str__(self):
         rows = []
@@ -61,47 +59,10 @@ class Board:
         b = Board.__new__(Board)
         b.squares = [row[:] for row in self.squares]
         b.turn = self.turn
-        b.castling = dict(self.castling)
-        b.en_passant = self.en_passant
         return b
 
     def make_move(self, m: Move):
         piece = self.squares[m.from_row][m.from_col]
-        color, kind = piece[0], piece[1]
-
-        # En passant capture: pawn moves diagonally to empty square
-        if kind == 'P' and self.en_passant and (m.to_row, m.to_col) == self.en_passant:
-            self.squares[m.from_row][m.to_col] = EMPTY
-
-        # Update en passant target for double pawn push
-        self.en_passant = None
-        if kind == 'P' and abs(m.to_row - m.from_row) == 2:
-            self.en_passant = ((m.from_row + m.to_row) // 2, m.to_col)
-
-        # Castling: move the rook alongside the king
-        if kind == 'K' and abs(m.to_col - m.from_col) == 2:
-            if m.to_col == 6:  # kingside
-                self.squares[m.from_row][5] = self.squares[m.from_row][7]
-                self.squares[m.from_row][7] = EMPTY
-            else:  # queenside
-                self.squares[m.from_row][3] = self.squares[m.from_row][0]
-                self.squares[m.from_row][0] = EMPTY
-
-        # Update castling rights
-        if kind == 'K':
-            self.castling[color + 'K'] = False
-            self.castling[color + 'Q'] = False
-        if kind == 'R':
-            if m.from_row == 7 and m.from_col == 7: self.castling['wK'] = False
-            if m.from_row == 7 and m.from_col == 0: self.castling['wQ'] = False
-            if m.from_row == 0 and m.from_col == 7: self.castling['bK'] = False
-            if m.from_row == 0 and m.from_col == 0: self.castling['bQ'] = False
-        # Rook captured on its starting square loses castling rights
-        if (m.to_row, m.to_col) == (7, 7): self.castling['wK'] = False
-        if (m.to_row, m.to_col) == (7, 0): self.castling['wQ'] = False
-        if (m.to_row, m.to_col) == (0, 7): self.castling['bK'] = False
-        if (m.to_row, m.to_col) == (0, 0): self.castling['bQ'] = False
-
         if m.promotion:
             piece = piece[0] + m.promotion
         self.squares[m.to_row][m.to_col] = piece
@@ -161,29 +122,8 @@ def piece_moves(board, r, c):
     if kind == 'Q':
         return slide_moves(board, r, c, color, QUEEN_DIRS)
     if kind == 'K':
-        moves = jump_moves(board, r, c, color, KING_DIRS)
-        moves.extend(castling_moves(board, r, c, color))
-        return moves
+        return jump_moves(board, r, c, color, KING_DIRS)
     return []
-
-
-def castling_moves(board, r, c, color):
-    moves = []
-    opp = 'b' if color == 'w' else 'w'
-    if board.is_attacked(r, c, opp):
-        return moves  # can't castle while in check
-    # Kingside
-    if board.castling.get(color + 'K'):
-        if board.squares[r][5] == EMPTY and board.squares[r][6] == EMPTY:
-            if not board.is_attacked(r, 5, opp) and not board.is_attacked(r, 6, opp):
-                moves.append(Move(r, c, r, 6))
-    # Queenside
-    if board.castling.get(color + 'Q'):
-        if (board.squares[r][3] == EMPTY and board.squares[r][2] == EMPTY
-                and board.squares[r][1] == EMPTY):
-            if not board.is_attacked(r, 3, opp) and not board.is_attacked(r, 2, opp):
-                moves.append(Move(r, c, r, 2))
-    return moves
 
 
 def attacked_squares(board, r, c):
@@ -274,15 +214,11 @@ def pawn_moves(board, r, c, color):
         if not board.in_bounds(nr, nc):
             continue
         target = board.squares[nr][nc]
-        # Normal diagonal capture
         if target != EMPTY and target[0] != color:
             if nr == promo_row:
                 for promo in 'QRBN':
                     moves.append(Move(r, c, nr, nc, promotion=promo))
             else:
                 moves.append(Move(r, c, nr, nc))
-        # En passant capture
-        elif target == EMPTY and board.en_passant == (nr, nc):
-            moves.append(Move(r, c, nr, nc))
 
     return moves

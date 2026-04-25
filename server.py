@@ -8,7 +8,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from BasicEngine.board import Board, Move
-from BasicEngine.engine import best_move
+from BasicEngine.novelty_engine import get_novel_move, analyze_position
 
 app = Flask(__name__)
 CORS(app, origins="*")
@@ -131,9 +131,12 @@ def human_move():
     }
 
     # Engine replies if the game is still going
-    lightning = data.get("mode") == "lightning"
     if _board.legal_moves():
-        em = best_move(_board, depth=3, history=_history if lightning else None, noise=80 if lightning else 0)
+        # Analyze position for novelty metrics
+        analysis = analyze_position(_board)
+
+        # Get best novel move
+        em = get_novel_move(_board)
         if em:
             euci = move_to_uci(em)
             _board.make_move(em)
@@ -141,6 +144,10 @@ def human_move():
             result["engine_move"] = euci
             result.update(board_to_dict(_board))
             result["history"] = _history
+            # Add novelty analysis to response
+            result["kl_divergence"] = analysis.get("kl_divergence", 0)
+            result["is_novelty_position"] = analysis.get("is_novelty_position", False)
+            result["engine_mode"] = "novelty" if analysis.get("is_novelty_position") else "base"
 
     winner, result_type = _game_result(_board)
     result["is_over"]     = winner is not None or result_type == 'stalemate'
@@ -156,9 +163,11 @@ def engine_move():
     if not _board.legal_moves():
         return jsonify({"error": "Game over"}), 400
 
-    data = request.get_json(force=True) or {}
-    lightning = data.get("mode") == "lightning"
-    em   = best_move(_board, depth=3, history=_history if lightning else None, noise=80 if lightning else 0)
+    # Analyze position for novelty metrics
+    analysis = analyze_position(_board)
+
+    # Get best novel move
+    em = get_novel_move(_board)
     euci = move_to_uci(em)
     _board.make_move(em)
     _history.append(euci)
@@ -168,6 +177,9 @@ def engine_move():
         "engine_move": euci,
         **board_to_dict(_board),
         "history": _history,
+        "kl_divergence": analysis.get("kl_divergence", 0),
+        "is_novelty_position": analysis.get("is_novelty_position", False),
+        "engine_mode": "novelty" if analysis.get("is_novelty_position") else "base",
         "is_over":     winner is not None or result_type == 'stalemate',
         "legal_moves": [move_to_uci(m) for m in _board.legal_moves()],
         "winner":      winner,
