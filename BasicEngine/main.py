@@ -4,6 +4,7 @@ from engine import random_move
 
 def play_random_game(max_plies=200):
     board = Board()
+    history = []
     print(board)
     print()
 
@@ -17,15 +18,21 @@ def play_random_game(max_plies=200):
                 print(f"Checkmate. {winner} wins.")
             else:
                 print("Stalemate.")
-            return
+            break
 
         side = 'White' if board.turn == 'w' else 'Black'
         print(f"{ply + 1}. {side}: {move}")
         board.make_move(move)
+        history.append(str(move))
         print(board)
         print()
+    else:
+        print("Move limit reached. Draw.")
 
-    print("Move limit reached. Draw.")
+    print("\n=== UCI move list ===")
+    print(' '.join(history))
+    print("\n=== Paste into a UCI engine ===")
+    print(f"position startpos moves {' '.join(history)}")
 
 
 if __name__ == '__main__':

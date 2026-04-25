@@ -75,7 +75,7 @@ class Board:
             for c in range(8):
                 if self.squares[r][c] == target:
                     return r, c
-        return None
+        raise ValueError(f"No {color} king on board")
 
     def is_attacked(self, r, c, by_color):
         for sr in range(8):
