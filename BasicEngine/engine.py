@@ -129,25 +129,28 @@ def _negamax(board: Board, depth: int, alpha: int, beta: int) -> int:
 
 
 def best_move(board: Board, depth: int = 3) -> Move:
+    scored = score_legal_moves(board, depth)
+    if not scored:
+        return None
+    return max(scored, key=scored.get)
+
+
+def score_legal_moves(board: Board, depth: int = 3) -> dict[Move, int]:
+    """Score every legal move from the current player's perspective."""
     moves = board.legal_moves()
     if not moves:
-        return None
+        return {}
 
-    best_score = -INF
-    best_m = None
+    scores = {}
     alpha = -INF
-
     for m in _order_moves(board, moves):
         nb = board.copy()
         nb.make_move(m)
-        score = -_negamax(nb, depth - 1, -INF, -alpha)
-        if score > best_score:
-            best_score = score
-            best_m = m
+        score = -_negamax(nb, max(0, depth - 1), -INF, -alpha)
+        scores[m] = score
         if score > alpha:
             alpha = score
-
-    return best_m
+    return scores
 
 
 def random_move(board: Board) -> Move:

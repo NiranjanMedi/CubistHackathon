@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Human Novelty Engine</title>
+<title>Pressure Novelty Engine</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=DM+Mono:wght@400;500&display=swap');
 
@@ -114,8 +114,8 @@ button:disabled { opacity: 0.35; cursor: not-allowed; }
 <body>
 
 <header>
-  <h1>Human Novelty Engine</h1>
-  <p>critical-point detector · novelty move policy</p>
+  <h1>Pressure Novelty Engine</h1>
+  <p>tactical pressure · ambiguity-preserving novelty</p>
 </header>
 
 <div class="layout">
@@ -284,8 +284,9 @@ function render() {
   // status
   const msg = document.getElementById('statusMsg');
   if (state.engine_move && state.engine_mode) {
-    const discomfort = state.discomfort !== undefined ? ` · discomfort ${Math.round(state.discomfort)}cp` : '';
-    msg.textContent = `Engine used ${state.engine_mode} mode${discomfort}`;
+    const critical = state.critical_score !== undefined ? ` · critical ${state.critical_score.toFixed(2)}` : '';
+    const loss = state.cp_loss !== undefined ? ` · loss ${state.cp_loss}cp` : '';
+    msg.textContent = `Engine used ${state.engine_mode} mode${critical}${loss}`;
   } else {
     msg.textContent = '';
   }

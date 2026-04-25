@@ -1,4 +1,4 @@
-"""Flask API for playing HumanNoveltyEngine on the browser board."""
+"""Flask API for playing PressureNoveltyEngine on the browser board."""
 
 import sys
 from pathlib import Path
@@ -6,11 +6,11 @@ from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
-ENGINE_DIR = Path(__file__).resolve().parent / "lichess-bot" / "engines" / "novelty"
+ENGINE_DIR = Path(__file__).resolve().parent / "BasicEngine"
 sys.path.insert(0, str(ENGINE_DIR))
 
 from board import Board, Move
-from human_novelty_engine import HumanNoveltyEngine
+from pressure_novelty_engine import PressureNoveltyEngine
 
 app = Flask(__name__)
 CORS(app, origins="*")
@@ -57,7 +57,7 @@ def move_to_uci(m: Move) -> str:
 # ── session state (in-memory; one game at a time) ────────────────────────────
 
 _board = Board()
-_engine = HumanNoveltyEngine(opponent_rating=1500)
+_engine = PressureNoveltyEngine()
 _history = []          # list of UCI strings
 
 
@@ -149,8 +149,11 @@ def human_move():
             result["engine_move"] = euci
             result["engine_mode"] = decision.mode
             result["engine_reason"] = decision.reason
-            result["critical"] = decision.critical_analysis["is_critical_point"]
-            result["discomfort"] = decision.critical_analysis["discomfort"]
+            result["critical"] = decision.critical_report.is_critical
+            result["critical_score"] = decision.critical_score
+            result["novelty_score"] = decision.novelty_score
+            result["cp_loss"] = decision.cp_loss
+            result["tags"] = list(decision.tags)
             result.update(board_to_dict(_board))
             result["history"] = _history
 
@@ -181,8 +184,11 @@ def engine_move():
         "engine_move": euci,
         "engine_mode": decision.mode,
         "engine_reason": decision.reason,
-        "critical": decision.critical_analysis["is_critical_point"],
-        "discomfort": decision.critical_analysis["discomfort"],
+        "critical": decision.critical_report.is_critical,
+        "critical_score": decision.critical_score,
+        "novelty_score": decision.novelty_score,
+        "cp_loss": decision.cp_loss,
+        "tags": list(decision.tags),
         **board_to_dict(_board),
         "history": _history,
         "is_over":     winner is not None or result_type == 'stalemate',

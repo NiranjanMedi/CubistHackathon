@@ -43,6 +43,8 @@ class Board:
     def __init__(self):
         self.squares = starting_squares()
         self.turn = 'w'
+        self.castling_rights = set('KQkq')
+        self.ep_target = None
 
     def __str__(self):
         rows = []
@@ -59,15 +61,68 @@ class Board:
         b = Board.__new__(Board)
         b.squares = [row[:] for row in self.squares]
         b.turn = self.turn
+        b.castling_rights = getattr(self, 'castling_rights', set()).copy()
+        b.ep_target = getattr(self, 'ep_target', None)
         return b
 
     def make_move(self, m: Move):
         piece = self.squares[m.from_row][m.from_col]
+        target = self.squares[m.to_row][m.to_col]
+        original_piece = piece
+        self.ep_target = None
+
+        if original_piece[1] == 'K' and abs(m.to_col - m.from_col) == 2:
+            if m.to_col > m.from_col:
+                rook_from_col, rook_to_col = 7, 5
+            else:
+                rook_from_col, rook_to_col = 0, 3
+            self.squares[m.from_row][rook_to_col] = self.squares[m.from_row][rook_from_col]
+            self.squares[m.from_row][rook_from_col] = EMPTY
+
+        if original_piece[1] == 'P' and target == EMPTY and m.from_col != m.to_col:
+            self.squares[m.from_row][m.to_col] = EMPTY
+
+        if original_piece[1] == 'P' and abs(m.to_row - m.from_row) == 2:
+            self.ep_target = ((m.from_row + m.to_row) // 2, m.from_col)
+
         if m.promotion:
             piece = piece[0] + m.promotion
         self.squares[m.to_row][m.to_col] = piece
         self.squares[m.from_row][m.from_col] = EMPTY
+        self.update_castling_rights(original_piece, target, m)
         self.turn = 'b' if self.turn == 'w' else 'w'
+
+    def update_castling_rights(self, piece, captured, move):
+        if not hasattr(self, 'castling_rights'):
+            self.castling_rights = set()
+
+        if piece == 'wK':
+            self.castling_rights.discard('K')
+            self.castling_rights.discard('Q')
+        elif piece == 'bK':
+            self.castling_rights.discard('k')
+            self.castling_rights.discard('q')
+        elif piece == 'wR':
+            if (move.from_row, move.from_col) == (7, 7):
+                self.castling_rights.discard('K')
+            elif (move.from_row, move.from_col) == (7, 0):
+                self.castling_rights.discard('Q')
+        elif piece == 'bR':
+            if (move.from_row, move.from_col) == (0, 7):
+                self.castling_rights.discard('k')
+            elif (move.from_row, move.from_col) == (0, 0):
+                self.castling_rights.discard('q')
+
+        if captured == 'wR':
+            if (move.to_row, move.to_col) == (7, 7):
+                self.castling_rights.discard('K')
+            elif (move.to_row, move.to_col) == (7, 0):
+                self.castling_rights.discard('Q')
+        elif captured == 'bR':
+            if (move.to_row, move.to_col) == (0, 7):
+                self.castling_rights.discard('k')
+            elif (move.to_row, move.to_col) == (0, 0):
+                self.castling_rights.discard('q')
 
     def find_king(self, color):
         target = color + 'K'
@@ -122,7 +177,7 @@ def piece_moves(board, r, c):
     if kind == 'Q':
         return slide_moves(board, r, c, color, QUEEN_DIRS)
     if kind == 'K':
-        return jump_moves(board, r, c, color, KING_DIRS)
+        return king_moves(board, r, c, color)
     return []
 
 
@@ -173,6 +228,37 @@ def jump_moves(board, r, c, color, dirs):
     return moves
 
 
+def king_moves(board, r, c, color):
+    moves = jump_moves(board, r, c, color, KING_DIRS)
+    home_row = 7 if color == 'w' else 0
+    opponent = 'b' if color == 'w' else 'w'
+    king_side = 'K' if color == 'w' else 'k'
+    queen_side = 'Q' if color == 'w' else 'q'
+    rights = getattr(board, 'castling_rights', set())
+
+    if (r, c) != (home_row, 4) or board.is_attacked(home_row, 4, opponent):
+        return moves
+
+    if (king_side in rights
+            and board.squares[home_row][5] == EMPTY
+            and board.squares[home_row][6] == EMPTY
+            and board.squares[home_row][7] == color + 'R'
+            and not board.is_attacked(home_row, 5, opponent)
+            and not board.is_attacked(home_row, 6, opponent)):
+        moves.append(Move(home_row, 4, home_row, 6))
+
+    if (queen_side in rights
+            and board.squares[home_row][1] == EMPTY
+            and board.squares[home_row][2] == EMPTY
+            and board.squares[home_row][3] == EMPTY
+            and board.squares[home_row][0] == color + 'R'
+            and not board.is_attacked(home_row, 3, opponent)
+            and not board.is_attacked(home_row, 2, opponent)):
+        moves.append(Move(home_row, 4, home_row, 2))
+
+    return moves
+
+
 def slide_moves(board, r, c, color, dirs):
     moves = []
     for dr, dc in dirs:
@@ -220,5 +306,7 @@ def pawn_moves(board, r, c, color):
                     moves.append(Move(r, c, nr, nc, promotion=promo))
             else:
                 moves.append(Move(r, c, nr, nc))
+        elif getattr(board, 'ep_target', None) == (nr, nc):
+            moves.append(Move(r, c, nr, nc))
 
     return moves
