@@ -107,6 +107,41 @@ class Board:
                 legal.append(m)
         return legal
 
+    def to_fen(self) -> str:
+        rows = []
+        for r in range(8):
+            run = 0
+            row_str = ''
+            for c in range(8):
+                p = self.squares[r][c]
+                if p == EMPTY:
+                    run += 1
+                    continue
+                if run:
+                    row_str += str(run)
+                    run = 0
+                letter = p[1]
+                row_str += letter.upper() if p[0] == 'w' else letter.lower()
+            if run:
+                row_str += str(run)
+            rows.append(row_str)
+        placement = '/'.join(rows)
+
+        castling = ''
+        if self.squares[7][4] == 'wK':
+            if self.squares[7][7] == 'wR':
+                castling += 'K'
+            if self.squares[7][0] == 'wR':
+                castling += 'Q'
+        if self.squares[0][4] == 'bK':
+            if self.squares[0][7] == 'bR':
+                castling += 'k'
+            if self.squares[0][0] == 'bR':
+                castling += 'q'
+        castling = castling or '-'
+
+        return f"{placement} {self.turn} {castling} - 0 1"
+
 
 def piece_moves(board, r, c):
     p = board.squares[r][c]

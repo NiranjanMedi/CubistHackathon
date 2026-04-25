@@ -1,0 +1,25 @@
+[Event "Hackathon Self-Play"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "DiscomfortBot"]
+[Black "BaselineBot"]
+[Result "1/2-1/2"]
+
+1. Nc3 Nc6 2. Nb5 Nb4 3. c3 Nd5 4. c4 Nb6 5. c5 Nc4 6. e4 d5 7. Qh5 Nf6 8. Qf3
+dxe4 9. Qf4 e5 10. Qg5 h6 11. Qh4 g5 12. Qg3 Nh5 13. Qc3 Be6 14. Bxc4 Bxc4 15.
+Qxe5+ Qe7 16. Nxc7+ Kd8 17. Qxh8 Kxc7 18. d4 Nf6 19. a3 Kb8 20. Be3 Nd5 21. Bd2
+Qe8 22. Nh3 g4 23. Ng1 Bd3 24. Bxh6 e3 25. fxe3 Nxe3 26. Bf4+ Kc8 27. Kd2 Nxg2
+28. Bg5 Bf5 29. Ne2 f6 30. Qxf6 Bg6 31. Qh8 Kb8 32. Qg8 Bf7 33. Qh8 Bd5 34. Nc3
+Bc6 35. Qg8 a6 36. Kc1 Bxc5 37. Bf4+ Nxf4 38. Qxe8+ Bxe8 39. dxc5 Ne6 40. Re1
+Bd7 41. c6 bxc6 42. Re4 Nc5 43. Rb4+ Ka7 44. Kd2 Rh8 45. Rh1 Rh3 46. Ke2 a5 47.
+Rc4 Kb6 48. a4 Be6 49. Rd4 Nb3 50. Re4 Bf5 51. Re7 Nd4+ 52. Kf2 Rf3+ 53. Kg1 g3
+54. Rf7 gxh2+ 55. Kg2 Bh3+ 56. Kxh2 Rxf7 57. Rd1 Rf3 58. Rxd4 Re3 59. Rd6 Kc7
+60. Rh6 Bf5 61. Rh5 Bg6 62. Rg5 Bf7 63. Rg7 Kb8 64. Rxf7 c5 65. Rf5 c4 66. Rf4
+Rd3 67. Ne2 Rd2 68. Rf8+ Ka7 69. Rf7+ Kb8 70. Rf8+ Ka7 71. Rf7+ Kb8 72. Rf8+
+Ka7 73. Rf7+ Kb8 74. Rf8+ Ka7 75. Rf7+ Kb8 76. Rf8+ Ka7 77. Rf7+ Kb8 78. Rf8+
+Ka7 79. Rf7+ Kb8 80. Rf8+ Ka7 81. Rf7+ Kb8 82. Rf8+ Ka7 83. Rf7+ Kb8 84. Rf8+
+Ka7 85. Rf7+ Kb8 86. Rf8+ Ka7 87. Rf7+ Kb8 88. Rf8+ Ka7 89. Rf7+ Kb8 90. Rf8+
+Ka7 91. Rf7+ Kb8 92. Rf8+ Ka7 93. Rf7+ Kb8 94. Rf8+ Ka7 95. Rf7+ Kb8 96. Rf8+
+Ka7 97. Rf7+ Kb8 98. Rf8+ Ka7 99. Rf7+ Kb8 100. Rf8+ Ka7 1/2-1/2
+

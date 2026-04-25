@@ -1,0 +1,26 @@
+[Event "Hackathon Self-Play"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "DiscomfortBot"]
+[Black "DiscomfortBot"]
+[Result "1/2-1/2"]
+
+1. Nc3 Nc6 2. Nb5 Nb4 3. c3 Nd5 4. c4 Nb6 5. c5 Nc4 6. e4 d5 7. Qh5 Nf6 8. Qf3
+dxe4 9. Qf4 e5 10. Qg5 h6 11. Qh4 g5 12. Qg3 Nh5 13. Qc3 Be6 14. Bxc4 Bxc4 15.
+Qxe5+ Qe7 16. Nxc7+ Kd8 17. Qxh8 Kxc7 18. d4 Nf6 19. a3 Qe6 20. Be3 Nd5 21. Bd2
+Kd7 22. Nh3 Kc6 23. Rc1 Bd3 24. Rd1 Qg4 25. Ng1 Qxg2 26. Bxg5 Qxh1 27. Rxd3
+Qxg1+ 28. Kd2 Qxg5+ 29. f4 Qxf4+ 30. Kd1 exd3 31. Qe5 Nc3+ 32. bxc3 Qf3+ 33.
+Kc1 Kd7 34. c4 Rd8 35. Qd5+ Qxd5 36. cxd5 Kc8 37. d6 Kb8 38. Kd2 Re8 39. d7 Rd8
+40. c6 bxc6 41. Kxd3 Rxd7 42. a4 c5 43. Kc2 Rxd4 44. a5 Rh4 45. h3 Bd6 46. a6
+c4 47. Kc3 Be5+ 48. Kb4 Bd6+ 49. Kc3 Be5+ 50. Kb4 Bd6+ 51. Kc3 Be5+ 52. Kb4
+Bd6+ 53. Kc3 Be5+ 54. Kb4 Bd6+ 55. Kc3 Be5+ 56. Kb4 Bd6+ 57. Kc3 Be5+ 58. Kb4
+Bd6+ 59. Kc3 Be5+ 60. Kb4 Bd6+ 61. Kc3 Be5+ 62. Kb4 Bd6+ 63. Kc3 Be5+ 64. Kb4
+Bd6+ 65. Kc3 Be5+ 66. Kb4 Bd6+ 67. Kc3 Be5+ 68. Kb4 Bd6+ 69. Kc3 Be5+ 70. Kb4
+Bd6+ 71. Kc3 Be5+ 72. Kb4 Bd6+ 73. Kc3 Be5+ 74. Kb4 Bd6+ 75. Kc3 Be5+ 76. Kb4
+Bd6+ 77. Kc3 Be5+ 78. Kb4 Bd6+ 79. Kc3 Be5+ 80. Kb4 Bd6+ 81. Kc3 Be5+ 82. Kb4
+Bd6+ 83. Kc3 Be5+ 84. Kb4 Bd6+ 85. Kc3 Be5+ 86. Kb4 Bd6+ 87. Kc3 Be5+ 88. Kb4
+Bd6+ 89. Kc3 Be5+ 90. Kb4 Bd6+ 91. Kc3 Be5+ 92. Kb4 Bd6+ 93. Kc3 Be5+ 94. Kb4
+Bd6+ 95. Kc3 Be5+ 96. Kb4 Bd6+ 97. Kc3 Be5+ 98. Kb4 Bd6+ 99. Kc3 Be5+ 100. Kb4
+Bd6+ 1/2-1/2
+

@@ -1,4 +1,5 @@
 import random
+from typing import Optional
 from board import Board, Move
 
 PIECE_VALUES = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 20000}
@@ -128,29 +129,34 @@ def _negamax(board: Board, depth: int, alpha: int, beta: int) -> int:
     return alpha
 
 
-def best_move(board: Board, depth: int = 3) -> Move:
+def evaluate_root_moves(board: Board, depth: int = 3):
+    """Score every legal move with full-window negamax.
+    Returns list of (move, white_signed_cp), sorted by side-to-move preference.
+    Uses full (-INF, INF) window per root move so all scores are exact — needed
+    by selectors that combine eval with other features."""
     moves = board.legal_moves()
     if not moves:
-        return None
+        return []
 
-    best_score = -INF
-    best_m = None
-    alpha = -INF
-
+    results = []
     for m in _order_moves(board, moves):
         nb = board.copy()
         nb.make_move(m)
-        score = -_negamax(nb, depth - 1, -INF, -alpha)
-        if score > best_score:
-            best_score = score
-            best_m = m
-        if score > alpha:
-            alpha = score
+        our_score = -_negamax(nb, depth - 1, -INF, INF)
+        white_signed = our_score if board.turn == 'w' else -our_score
+        results.append((m, white_signed))
 
-    return best_m
+    sign = 1 if board.turn == 'w' else -1
+    results.sort(key=lambda x: sign * x[1], reverse=True)
+    return results
 
 
-def random_move(board: Board) -> Move:
+def best_move(board: Board, depth: int = 3) -> Optional[Move]:
+    scored = evaluate_root_moves(board, depth)
+    return scored[0][0] if scored else None
+
+
+def random_move(board: Board) -> Optional[Move]:
     moves = board.legal_moves()
     if not moves:
         return None

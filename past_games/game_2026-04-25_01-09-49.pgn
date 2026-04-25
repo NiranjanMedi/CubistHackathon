@@ -1,0 +1,12 @@
+[Event "Hackathon Self-Play"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "DiscomfortBot"]
+[Black "DiscomfortBot"]
+[Result "*"]
+
+1. e4 Nf6 2. Nf3 Nxe4 3. Bc4 Nc6 4. Nc3 Nd6 5. d3 Nb4 6. Bg5 f6 7. Qe2 fxg5 8.
+a3 Nxc2+ 9. Qxc2 g4 10. h3 gxf3 11. d4 fxg2 12. Bb5 gxh1=Q+ 13. Bf1 e6 14. d5
+e5 *
+
