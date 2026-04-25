@@ -1,0 +1,22 @@
+Please review the code cleanliness of every local git branch in this repo.
+
+For each branch, check it out, look through the codebase, and write a short report in the reports/ folder. Also create a reports/summary.md file that ranks all branches from cleanest to messiest.
+
+For each branch report, include:
+
+overall cleanliness score (1–10)
+short summary
+main strengths
+biggest issues
+a few concrete examples with file paths
+top cleanup recommendations
+
+Please focus on things like readability, naming, organization, separation of concerns, duplication, unnecessary complexity, dead code, comments, and overall maintainability.
+
+A few constraints:
+
+don’t modify any source code
+don’t commit anything
+only write files into reports/
+
+Use filenames like reports/<branch-name>.md for the per-branch reports.
