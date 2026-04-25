@@ -1,5 +1,7 @@
 # Novelty Chess Engine
 
+![My screenshot](assets/graph.png)
+
 A chess engine that plays surprising, psychologically uncomfortable moves rather than just the objectively best ones. It identifies positions where what looks good on the surface differs from what deep calculation reveals — then plays the move the opponent least expects.
 
 ---
