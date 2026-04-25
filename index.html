@@ -73,9 +73,14 @@ button.lightning-off { border-color: var(--lightning); color: var(--lightning); 
 button.danger { border-color: var(--danger); color: var(--danger); }
 button:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.mode-row { display: flex; gap: 6px; }
-.mode-btn { flex: 1; text-align: center; }
+.mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mode-btn { text-align: center; font-size: 12px; padding: 6px 4px; }
 .mode-btn.active { background: var(--accent); color: #1a1a18; border-color: var(--accent); }
+.mode-btn.train-active { background: #4caf50; color: #1a1a18; border-color: #4caf50; }
+.train-stats { font-size: 11px; color: var(--muted); text-align: center; padding: 4px 0; }
+.weights-panel { font-size: 10px; color: var(--muted); background: var(--card-bg); border: 0.5px solid var(--border); border-radius: 6px; padding: 6px 8px; margin-top: 4px; }
+.weights-panel .w-row { display: flex; justify-content: space-between; padding: 1px 0; }
+.weights-panel .w-val { color: var(--accent); font-variant-numeric: tabular-nums; }
 
 .move-list { background: var(--card-bg); border: 0.5px solid var(--border); border-radius: 10px; padding: 10px; max-height: 240px; overflow-y: auto; }
 .move-row { display: flex; gap: 4px; align-items: center; padding: 1px 0; }
@@ -133,7 +138,16 @@ button:disabled { opacity: 0.35; cursor: not-allowed; }
       <div class="mode-row">
         <button class="mode-btn active" id="modeHuman" onclick="setMode('human')">Human vs Engine</button>
         <button class="mode-btn" id="modeEngine" onclick="setMode('engine')">Engine vs Engine</button>
+        <button class="mode-btn" id="modeHumanAI" onclick="setMode('human-ai')">Human AI</button>
+        <button class="mode-btn" id="modeAutoTrain" onclick="startAutoTrain()">⚡ Auto Train</button>
       </div>
+    </div>
+
+    <div id="trainStatsCard" class="card" style="display:none">
+      <div class="label">Training</div>
+      <div class="train-stats" id="trainStats">Games: 0 | Engine: 0 | Human AI: 0</div>
+      <button id="stopTrainBtn" onclick="stopAutoTrain()" style="width:100%;margin-top:6px;font-size:12px">⏹ Stop Training</button>
+      <div class="weights-panel" id="weightsPanel"></div>
     </div>
 
     <div class="card">
@@ -176,7 +190,10 @@ button:disabled { opacity: 0.35; cursor: not-allowed; }
   <div class="win-box">
     <div class="win-title" id="winTitle"></div>
     <div class="win-sub" id="winSub"></div>
-    <button class="accent" onclick="resetGame()">New game</button>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button class="accent" onclick="resetGame()">New game</button>
+      <button id="logGameBtn" onclick="logAndDismiss()" title="Save game log and dismiss">✕ Log &amp; Dismiss</button>
+    </div>
   </div>
 </div>
 
@@ -193,10 +210,12 @@ const GLYPHS = {
 let state = { squares:{}, turn:'w', history:[], legal_moves:[], is_over:false, winner:null, result_type:null };
 let selected = null;   // "r,c" string of selected square
 let legalFromSelected = [];
-let mode = 'human';    // 'human' | 'engine'
+let mode = 'human';    // 'human' | 'engine' | 'human-ai' | 'auto-train'
 let lightning = false;
 let busy = false;
-let pendingPromoUci = null;  // base UCI awaiting promotion choice
+let pendingPromoUci = null;
+let autoTraining = false;
+let autoTrainTimer = null;
 
 // ── board labels ──────────────────────────────────────────────────────────────
 const files = 'abcdefgh';
@@ -255,6 +274,10 @@ function render() {
   badge.className = 'badge ' + (isWhite ? 'white' : 'black');
   if (mode === 'human') {
     badge.textContent = isWhite ? 'Your turn' : 'Engine thinking…';
+  } else if (mode === 'human-ai') {
+    badge.textContent = isWhite ? 'Engine (white)' : 'Human AI (black)';
+  } else if (mode === 'auto-train') {
+    badge.textContent = isWhite ? 'Engine' : 'Human AI';
   } else {
     badge.textContent = isWhite ? 'White (engine)' : 'Black (engine)';
   }
@@ -287,7 +310,16 @@ function render() {
   msg.className = 'status-msg';
 
   const engineBtn = document.getElementById('enginePlayBtn');
-  engineBtn.disabled = mode !== 'engine' || state.is_over || busy;
+  engineBtn.disabled = (mode !== 'engine' && mode !== 'human-ai') || state.is_over || busy || autoTraining;
+
+  // Auto-train: schedule next move automatically
+  if (autoTraining && !state.is_over && !busy) {
+    clearTimeout(autoTrainTimer);
+    autoTrainTimer = setTimeout(autoTrainStep, 400);
+  }
+  if (autoTraining && state.is_over) {
+    autoTrainTimer = setTimeout(autoTrainGameEnd, 800);
+  }
 
   // Win overlay
   if (state.is_over) {
@@ -304,7 +336,9 @@ function render() {
       title.textContent = 'Game over';
       sub.textContent   = '';
     }
-    document.getElementById('winOverlay').className = 'win-overlay show';
+    if (!autoTraining) {
+      document.getElementById('winOverlay').className = 'win-overlay show';
+    }
   } else {
     document.getElementById('winOverlay').className = 'win-overlay';
   }
@@ -313,7 +347,7 @@ function render() {
 // ── interaction ───────────────────────────────────────────────────────────────
 function handleClick(key) {
   if (mode !== 'human' || busy || state.is_over) return;
-  if (state.turn !== 'w') return;  // human plays white
+  if (state.turn !== 'w') return;
 
   const piece = state.squares[key];
 
@@ -400,12 +434,143 @@ function showPromoPicker(baseUci, color) {
 
 async function sendMove(uci) {
   const data = await api('/move', { move: uci, mode: lightning ? 'lightning' : 'normal' });
-  if (data) { state = data; render(); }
+  if (!data) return;
+  state = data;
+  render();  // show human move immediately
+
+  if (data.engine_thinking) {
+    await pollEngineStatus();
+  }
+}
+
+async function pollEngineStatus() {
+  while (true) {
+    await new Promise(r => setTimeout(r, 150));
+    try {
+      const res = await fetch(API + '/engine_status');
+      const data = await res.json();
+      if (!data.engine_thinking) {
+        state = data;
+        render();
+        break;
+      }
+    } catch(e) { break; }
+  }
 }
 
 async function engineStep() {
-  const data = await api('/engine_move', { mode: lightning ? 'lightning' : 'normal' });
-  if (data) { state = data; render(); }
+  if (mode === 'human-ai') {
+    if (state.turn === 'w') {
+      const data = await api('/engine_move', { mode: lightning ? 'lightning' : 'normal' });
+      if (data) { state = data; render(); }
+    } else {
+      const data = await api('/human_ai_move', {});
+      if (data) { state = data; render(); }
+    }
+  } else {
+    const data = await api('/engine_move', { mode: lightning ? 'lightning' : 'normal' });
+    if (data) { state = data; render(); }
+  }
+}
+
+async function autoTrainStep() {
+  if (!autoTraining || state.is_over) return;
+  if (state.turn === 'w') {
+    const data = await api('/engine_move', { mode: 'normal' });
+    if (data) { state = data; render(); }
+  } else {
+    const data = await api('/human_ai_move', {});
+    if (data) { state = data; render(); }
+  }
+}
+
+async function autoTrainGameEnd() {
+  if (!autoTraining) return;
+  // Log and tune
+  const res = await fetch(API + '/log_game', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      history: state.history,
+      winner: state.winner,
+      result_type: state.result_type,
+      mode: 'auto-train',
+    })
+  });
+  const data = await res.json();
+  updateTrainStats(data);
+  // Small pause then restart
+  await new Promise(r => setTimeout(r, 1200));
+  if (!autoTraining) return;
+  const reset = await api('/reset', {});
+  if (reset) { state = reset; render(); }
+}
+
+function updateTrainStats(data) {
+  const g = data.games_played ?? 0;
+  const ew = data.engine_wins ?? 0;
+  const hw = data.human_ai_wins ?? 0;
+  const draws = g - ew - hw;
+  document.getElementById('trainStats').textContent =
+    `Games: ${g} | Engine: ${ew} | Human AI: ${hw} | Draws: ${draws}`;
+  if (data.weights) renderWeights(data.weights);
+}
+
+function renderWeights(w) {
+  const panel = document.getElementById('weightsPanel');
+  const labels = {
+    passed_pawn: 'Passed pawn',
+    pawn_structure: 'Pawn structure',
+    bishop_pair: 'Bishop pair',
+    rook_open_file: 'Rook open file',
+    king_safety: 'King safety',
+  };
+  panel.innerHTML = Object.entries(w).map(([k, v]) =>
+    `<div class="w-row"><span>${labels[k] ?? k}</span><span class="w-val">${v.toFixed(3)}</span></div>`
+  ).join('');
+}
+
+async function startAutoTrain() {
+  autoTraining = true;
+  mode = 'auto-train';
+  document.getElementById('trainStatsCard').style.display = '';
+  document.getElementById('modeAutoTrain').className = 'mode-btn train-active';
+  ['modeHuman','modeEngine','modeHumanAI'].forEach(id =>
+    document.getElementById(id).className = 'mode-btn');
+  // Load initial weights
+  try {
+    const r = await fetch(API + '/weights');
+    const d = await r.json();
+    updateTrainStats(d);
+  } catch(e) {}
+  // Reset and start
+  const reset = await api('/reset', {});
+  if (reset) { state = reset; render(); }
+}
+
+function stopAutoTrain() {
+  autoTraining = false;
+  clearTimeout(autoTrainTimer);
+  mode = 'human';
+  document.getElementById('trainStatsCard').style.display = 'none';
+  document.getElementById('modeAutoTrain').className = 'mode-btn';
+  document.getElementById('modeHuman').className = 'mode-btn active';
+  render();
+}
+
+async function logAndDismiss() {
+  if (autoTraining) return;  // auto-train logs its own games
+  await fetch(API + '/log_game', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      history: state.history,
+      winner: state.winner,
+      result_type: state.result_type,
+      mode: mode,
+    })
+  });
+  document.getElementById('winOverlay').className = 'win-overlay';
 }
 
 function toggleLightning() {
@@ -422,9 +587,12 @@ async function resetGame() {
 }
 
 function setMode(m) {
+  if (autoTraining) stopAutoTrain();
   mode = m;
-  document.getElementById('modeHuman').className  = 'mode-btn' + (m === 'human'  ? ' active' : '');
-  document.getElementById('modeEngine').className = 'mode-btn' + (m === 'engine' ? ' active' : '');
+  document.getElementById('modeHuman').className   = 'mode-btn' + (m === 'human'    ? ' active' : '');
+  document.getElementById('modeEngine').className  = 'mode-btn' + (m === 'engine'   ? ' active' : '');
+  document.getElementById('modeHumanAI').className = 'mode-btn' + (m === 'human-ai' ? ' active' : '');
+  document.getElementById('modeAutoTrain').className = 'mode-btn';
   render();
 }
 

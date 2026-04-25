@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(git checkout *)",
-      "Bash(python -c \"from BasicEngine.board import Board, Move; b = Board\\(\\); print\\('castling:', b.castling\\); print\\('legal moves count:', len\\(b.legal_moves\\(\\)\\)\\); print\\('OK'\\)\")"
+      "Bash(python -c \"from BasicEngine.board import Board, Move; b = Board\\(\\); print\\('castling:', b.castling\\); print\\('legal moves count:', len\\(b.legal_moves\\(\\)\\)\\); print\\('OK'\\)\")",
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(pip install *)",
+      "Bash(python -m pytest tests/test_smoke.py -q)",
+      "Bash(python -c ' *)"
     ]
   }
 }

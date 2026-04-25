@@ -1,0 +1,8 @@
+{
+  "passed_pawn": 0.7999999999999998,
+  "pawn_structure": 1.0,
+  "bishop_pair": 0.8399999999999999,
+  "rook_open_file": 0.96,
+  "king_safety": 0.7999999999999998,
+  "niche_bias": 1.0
+}
