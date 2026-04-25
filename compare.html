@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Engine Comparison</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=DM+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --sq: 50px;
+  --sq-light: #F0D9B5; --sq-dark: #B58863;
+  --sq-legal: rgba(20,85,30,0.45);
+  --sq-base-l: #aed4e8; --sq-base-d: #6aaecf;
+  --sq-nov-l:  #e8d87a; --sq-nov-d:  #c4b840;
+  --bg: #1a1a18; --card-bg: #2e2e2a; --border: #3a3a35;
+  --text: #e8e4d8; --muted: #888880;
+  --col-base: #7aafc8; --col-nov: #c8a96e;
+  --font-display: 'Playfair Display', serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  padding: 1.5rem 1rem;
+}
+
+/* ── header / controls ── */
+header { text-align: center; margin-bottom: 1rem; }
+header h1 { font-family: var(--font-display); font-size: 22px; font-weight: 600; }
+header h1 .b { color: var(--col-base); }
+header h1 .n { color: var(--col-nov); }
+header p { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+.controls { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 1.2rem; flex-wrap: wrap; }
+button { font-family: var(--font-mono); font-size: 12px; padding: 6px 14px; border-radius: 6px; border: 0.5px solid var(--border); background: transparent; color: var(--text); cursor: pointer; }
+button:hover { background: #2e2e2a; }
+button.primary { background: var(--col-nov); color: #1a1a18; border-color: var(--col-nov); font-weight: 500; }
+button.primary:hover { opacity: 0.85; }
+.turn-chip { font-size: 11px; color: var(--muted); padding: 4px 10px; border: 0.5px solid var(--border); border-radius: 20px; }
+.turn-chip.active { color: var(--col-nov); border-color: var(--col-nov); }
+#spinner { font-size: 11px; color: var(--muted); }
+
+/* ── THE MAIN LAYOUT ── */
+.main {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+/* ── board panel (left or right) ── */
+.board-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.panel-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  text-align: center;
+  width: 100%;
+}
+.panel-label.base { color: var(--col-base); }
+.panel-label.nov  { color: var(--col-nov); }
+.panel-label small {
+  display: block; font-size: 9px; color: var(--muted);
+  font-weight: 400; letter-spacing: 0; text-transform: none; margin-top: 2px;
+}
+
+/* board + rank labels */
+.board-row { display: flex; flex-direction: row; align-items: flex-start; }
+.rank-labels { display: flex; flex-direction: column; padding-right: 4px; }
+.rank-labels span { height: var(--sq); display: flex; align-items: center; font-size: 10px; color: var(--muted); }
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, var(--sq));
+  grid-template-rows: repeat(8, var(--sq));
+  border: 2px solid #5a4a2a;
+  flex-shrink: 0;
+}
+
+/* file labels */
+.file-labels { display: flex; flex-direction: row; margin-left: 18px; /* rank col width + gap */ }
+.file-labels span { width: var(--sq); text-align: center; font-size: 10px; color: var(--muted); padding-top: 3px; }
+
+/* squares */
+.sq { width: var(--sq); height: var(--sq); display: flex; align-items: center; justify-content: center; position: relative; }
+.sq.light  { background: var(--sq-light); }
+.sq.dark   { background: var(--sq-dark); }
+.sq.base-l { background: var(--sq-base-l); }
+.sq.base-d { background: var(--sq-base-d); }
+.sq.nov-l  { background: var(--sq-nov-l); }
+.sq.nov-d  { background: var(--sq-nov-d); }
+.sq.selected { outline: 3px solid rgba(255,220,50,0.85); outline-offset: -3px; }
+.sq.legal-dot::after { content:''; position:absolute; width:22px; height:22px; border-radius:50%; background:var(--sq-legal); pointer-events:none; }
+.sq.legal-cap::after { content:''; position:absolute; inset:0; background:transparent; border:4px solid var(--sq-legal); pointer-events:none; }
+
+.piece { font-size: 32px; line-height: 1; user-select: none; }
+.piece.white { color: #fff; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7)); }
+.piece.black { color: #1a1a18; -webkit-text-stroke: 1px #1a1a18; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
+#board-left .sq { cursor: pointer; }
+#board-left .piece { cursor: pointer; transition: transform 0.1s; }
+#board-left .piece:hover { transform: scale(1.1); }
+
+/* ── center info column ── */
+.info-col {
+  flex-shrink: 0;
+  width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 36px; /* align with board top (past label) */
+}
+
+.info-block { display: flex; flex-direction: column; gap: 5px; }
+.info-key { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.info-val { font-size: 14px; font-weight: 500; }
+.info-val.base { color: var(--col-base); }
+.info-val.nov  { color: var(--col-nov); }
+
+.sep { height: 1px; background: var(--border); }
+
+.diverge-badge {
+  display: inline-block; padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 500; border: 0.5px solid;
+}
+.diverge-badge.none    { color: var(--muted); border-color: var(--border); }
+.diverge-badge.same    { color: #7ab87a; border-color: #4a7a4a; background: rgba(122,184,122,0.08); }
+.diverge-badge.differs { color: var(--col-nov); border-color: var(--col-nov); background: rgba(200,169,110,0.1); }
+.diverge-detail { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+.move-list { background: var(--card-bg); border: 0.5px solid var(--border); border-radius: 8px; padding: 8px; max-height: 220px; overflow-y: auto; }
+.move-row { display: flex; gap: 3px; align-items: center; padding: 1px 0; }
+.move-num { font-size: 9px; color: var(--muted); min-width: 16px; }
+.move-tag { font-size: 10px; padding: 1px 4px; border-radius: 3px; }
+.move-tag.w { background: rgba(200,169,110,0.15); color: var(--col-nov); }
+.move-tag.b { background: rgba(255,255,255,0.06); color: var(--text); }
+
+/* ── commentary ── */
+.commentary { max-width: 900px; margin: 1.2rem auto 0; display: none; }
+.commentary-card { background: var(--card-bg); border: 0.5px solid var(--col-nov); border-radius: 10px; padding: 12px 16px; }
+.commentary-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 5px; }
+.mode-pill { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 4px; margin-left: 6px; }
+.mode-pill.novelty { background: rgba(200,169,110,0.2); color: var(--col-nov); border: 0.5px solid rgba(200,169,110,0.4); }
+.mode-pill.engine  { background: rgba(120,180,200,0.15); color: var(--col-base); border: 0.5px solid rgba(120,180,200,0.3); }
+.commentary-text { font-size: 12px; color: var(--text); line-height: 1.6; }
+
+/* ── overlays ── */
+.overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:100; align-items:center; justify-content:center; }
+.overlay.show { display:flex; }
+.overlay-box { background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:28px 36px; text-align:center; }
+.overlay-title { font-family:var(--font-display); font-size:26px; font-weight:600; color:var(--col-nov); margin-bottom:6px; }
+.overlay-sub { font-size:12px; color:var(--muted); margin-bottom:20px; }
+.promo-pieces { display:flex; gap:8px; justify-content:center; }
+.promo-piece { font-size:40px; width:54px; height:54px; display:flex; align-items:center; justify-content:center; border-radius:8px; cursor:pointer; border:1px solid var(--border); background:transparent; }
+.promo-piece:hover { background:#3a3a35; }
+
+::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="b">Baseline</span> vs <span class="n">Novelty</span> Engine</h1>
+  <p>play white on the left · right shows what novelty would have played</p>
+</header>
+
+<div class="controls">
+  <button class="primary" onclick="resetGame()">New Game</button>
+  <span class="turn-chip" id="turnChip">White to move</span>
+  <span id="spinner" style="display:none">thinking…</span>
+  <a href="/" style="font-size:11px;color:var(--muted);text-decoration:none;">← single board</a>
+</div>
+
+<!-- ── main layout: left board | info | right board ── -->
+<div class="main">
+
+  <!-- LEFT: baseline (interactive) -->
+  <div class="board-panel">
+    <div class="panel-label base">Baseline Engine<small>Negamax α-β · plays the game</small></div>
+    <div class="board-row">
+      <div class="rank-labels" id="rankLeft"></div>
+      <div class="board" id="board-left"></div>
+    </div>
+    <div class="file-labels" id="fileLeft"></div>
+  </div>
+
+  <!-- CENTER: info column -->
+  <div class="info-col">
+    <div class="info-block">
+      <div class="info-key">Baseline played</div>
+      <div class="info-val base" id="labelBase">—</div>
+    </div>
+    <div class="info-block">
+      <div class="info-key">Novelty would play</div>
+      <div class="info-val nov" id="labelNov">—</div>
+    </div>
+    <div class="sep"></div>
+    <div>
+      <div class="diverge-badge none" id="divergeBadge">make a move</div>
+      <div class="diverge-detail" id="divergeDetail"></div>
+    </div>
+    <div class="sep"></div>
+    <div class="move-list" id="moveList"></div>
+  </div>
+
+  <!-- RIGHT: novelty hypothetical (display only) -->
+  <div class="board-panel">
+    <div class="panel-label nov">Novelty Engine<small>Critical-point + KL divergence · display only</small></div>
+    <div class="board-row">
+      <div class="rank-labels" id="rankRight"></div>
+      <div class="board" id="board-right"></div>
+    </div>
+    <div class="file-labels" id="fileRight"></div>
+  </div>
+
+</div>
+
+<!-- commentary -->
+<div class="commentary" id="commentary">
+  <div class="commentary-card">
+    <div class="commentary-label">Novelty engine · <span class="mode-pill novelty" id="modePill">novelty</span></div>
+    <div class="commentary-text" id="commentaryText"></div>
+  </div>
+</div>
+
+<!-- promotion overlay -->
+<div class="overlay" id="promoOverlay">
+  <div class="overlay-box">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Promote pawn to</div>
+    <div class="promo-pieces" id="promoPieces"></div>
+  </div>
+</div>
+
+<!-- win overlay -->
+<div class="overlay" id="winOverlay">
+  <div class="overlay-box">
+    <div class="overlay-title" id="winTitle"></div>
+    <div class="overlay-sub" id="winSub"></div>
+    <button class="primary" onclick="resetGame()">New Game</button>
+  </div>
+</div>
+
+<script>
+const FILES = 'abcdefgh';
+const RANKS = '87654321';
+const GLYPHS = {
+  wP:'♟', wN:'♞', wB:'♝', wR:'♜', wQ:'♛', wK:'♚',
+  bP:'♟', bN:'♞', bB:'♝', bR:'♜', bQ:'♛', bK:'♚',
+};
+
+// ── build board labels ────────────────────────────────────────────────────────
+['rankLeft','rankRight'].forEach(id => {
+  const el = document.getElementById(id);
+  for (let r = 0; r < 8; r++) {
+    const s = document.createElement('span'); s.textContent = RANKS[r]; el.appendChild(s);
+  }
+});
+['fileLeft','fileRight'].forEach(id => {
+  const el = document.getElementById(id);
+  for (let c = 0; c < 8; c++) {
+    const s = document.createElement('span'); s.textContent = FILES[c]; el.appendChild(s);
+  }
+});
+
+// ── state ─────────────────────────────────────────────────────────────────────
+let state = {
+  squares:{}, turn:'w', history:[], legal_moves:[], is_over:false,
+  winner:null, result_type:null,
+  baseline_move:null, novelty_move:null, novelty_board:null, engines_agree:null,
+};
+let selected = null;
+let legalTargets = [];
+let pendingPromoUci = null;
+let busy = false;
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function api(path, body) {
+  busy = true;
+  document.getElementById('spinner').style.display = 'inline';
+  try {
+    const opts = body
+      ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }
+      : { method:'GET' };
+    const res = await fetch('/api/compare' + path, opts);
+    const data = await res.json();
+    if (data.error) { alert(data.error); return null; }
+    return data;
+  } catch(_) {
+    document.getElementById('turnChip').textContent = 'Cannot reach server';
+    return null;
+  } finally {
+    busy = false;
+    document.getElementById('spinner').style.display = 'none';
+  }
+}
+
+async function loadState() {
+  const d = await api('/state');
+  if (d) { state = d; render(); }
+}
+
+async function resetGame() {
+  selected = null; legalTargets = [];
+  document.getElementById('winOverlay').className = 'overlay';
+  document.getElementById('commentary').style.display = 'none';
+  const d = await api('/reset', {});
+  if (d) { state = d; render(); }
+}
+
+async function sendMove(uci) {
+  const d = await api('/move', { move: uci });
+  if (d) {
+    state = d;
+    render();
+    if (d.is_over) showWin(d.winner, d.result_type);
+  }
+}
+
+// ── click handling (left board only) ─────────────────────────────────────────
+function handleClick(key) {
+  if (busy || state.is_over || state.turn !== 'w') return;
+
+  if (selected) {
+    if (legalTargets.includes(key)) {
+      const [fr, fc] = selected.split(',').map(Number);
+      const [tr, tc] = key.split(',').map(Number);
+      const uci = FILES[fc] + RANKS[fr] + FILES[tc] + RANKS[tr];
+      const piece = state.squares[selected];
+      const isPromo = piece && piece[1] === 'P' &&
+        ((piece[0] === 'w' && tr === 0) || (piece[0] === 'b' && tr === 7));
+      selected = null; legalTargets = [];
+      if (isPromo) showPromo(uci, piece[0]);
+      else sendMove(uci);
+      return;
+    }
+    selected = null; legalTargets = [];
+  }
+
+  const piece = state.squares[key];
+  if (piece && piece[0] === state.turn) {
+    selected = key;
+    const [r, c] = key.split(',').map(Number);
+    const fromUci = FILES[c] + RANKS[r];
+    legalTargets = (state.legal_moves || [])
+      .filter(m => m.startsWith(fromUci))
+      .map(m => `${8 - parseInt(m[3])},${m.charCodeAt(2) - 97}`);
+  }
+  renderBoards();
+}
+
+function showPromo(baseUci, color) {
+  pendingPromoUci = baseUci;
+  const el = document.getElementById('promoPieces');
+  el.innerHTML = '';
+  [['q','♛'],['r','♜'],['b','♝'],['n','♞']].forEach(([letter, glyph]) => {
+    const btn = document.createElement('div');
+    btn.className = 'promo-piece';
+    btn.textContent = glyph;
+    btn.style.color = color === 'w' ? '#fff' : '#1a1a18';
+    if (color === 'b') btn.style.webkitTextStroke = '1px #1a1a18';
+    btn.onclick = () => {
+      document.getElementById('promoOverlay').className = 'overlay';
+      sendMove(pendingPromoUci + letter);
+      pendingPromoUci = null;
+    };
+    el.appendChild(btn);
+  });
+  document.getElementById('promoOverlay').className = 'overlay show';
+}
+
+// ── render ────────────────────────────────────────────────────────────────────
+function render() {
+  renderBoards();
+  renderInfo();
+  renderCommentary();
+}
+
+function renderBoards() {
+  const hist = state.history || [];
+
+  // baseline last-move squares
+  let bFrom = null, bTo = null;
+  if (hist.length) {
+    const last = hist[hist.length - 1];
+    bFrom = `${8 - parseInt(last[1])},${last.charCodeAt(0) - 97}`;
+    bTo   = `${8 - parseInt(last[3])},${last.charCodeAt(2) - 97}`;
+  }
+
+  // novelty last-move squares
+  let nFrom = null, nTo = null;
+  if (state.novelty_move) {
+    const nm = state.novelty_move;
+    nFrom = `${8 - parseInt(nm[1])},${nm.charCodeAt(0) - 97}`;
+    nTo   = `${8 - parseInt(nm[3])},${nm.charCodeAt(2) - 97}`;
+  }
+
+  const novSquares = (state.novelty_board && state.novelty_board.squares) || state.squares;
+  const leftEl  = document.getElementById('board-left');
+  const rightEl = document.getElementById('board-right');
+  leftEl.innerHTML = '';
+  rightEl.innerHTML = '';
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const key = `${r},${c}`;
+      const isLight = (r + c) % 2 === 0;
+
+      // left (baseline)
+      {
+        const isLast = key === bFrom || key === bTo;
+        const isSel  = key === selected;
+        const isLeg  = legalTargets.includes(key);
+        const piece  = state.squares[key];
+
+        const sq = document.createElement('div');
+        if (isLast)      sq.className = 'sq ' + (isLight ? 'base-l' : 'base-d');
+        else             sq.className = 'sq ' + (isLight ? 'light'  : 'dark');
+        if (isSel)       sq.classList.add('selected');
+        if (isLeg)       sq.classList.add(piece ? 'legal-cap' : 'legal-dot');
+        sq.onclick = () => handleClick(key);
+        if (piece) {
+          const span = document.createElement('span');
+          span.className = 'piece ' + (piece[0] === 'w' ? 'white' : 'black');
+          span.textContent = GLYPHS[piece] || '?';
+          sq.appendChild(span);
+        }
+        leftEl.appendChild(sq);
+      }
+
+      // right (novelty, display only)
+      {
+        const isLast = key === nFrom || key === nTo;
+        const piece  = novSquares[key];
+
+        const sq = document.createElement('div');
+        if (isLast) sq.className = 'sq ' + (isLight ? 'nov-l' : 'nov-d');
+        else        sq.className = 'sq ' + (isLight ? 'light' : 'dark');
+        if (piece) {
+          const span = document.createElement('span');
+          span.className = 'piece ' + (piece[0] === 'w' ? 'white' : 'black');
+          span.textContent = GLYPHS[piece] || '?';
+          sq.appendChild(span);
+        }
+        rightEl.appendChild(sq);
+      }
+    }
+  }
+}
+
+function renderInfo() {
+  // turn chip
+  const chip = document.getElementById('turnChip');
+  if (state.is_over) {
+    chip.textContent = state.result_type === 'stalemate' ? 'Draw' :
+                       (state.winner === 'w' ? 'White wins!' : 'Black wins!');
+    chip.className = 'turn-chip';
+  } else {
+    chip.textContent = state.turn === 'w' ? 'White to move' : 'Black to move';
+    chip.className = 'turn-chip' + (state.turn === 'w' ? ' active' : '');
+  }
+
+  document.getElementById('labelBase').textContent = state.baseline_move || '—';
+  document.getElementById('labelNov').textContent  = state.novelty_move  || '—';
+
+  const badge  = document.getElementById('divergeBadge');
+  const detail = document.getElementById('divergeDetail');
+  if (state.engines_agree === null) {
+    badge.className = 'diverge-badge none'; badge.textContent = 'make a move'; detail.textContent = '';
+  } else if (state.engines_agree) {
+    badge.className = 'diverge-badge same'; badge.textContent = '✓ same move'; detail.textContent = '';
+  } else {
+    badge.className = 'diverge-badge differs'; badge.textContent = '↕ engines differ';
+    detail.textContent = state.baseline_move + ' vs ' + state.novelty_move;
+  }
+
+  // move list
+  const ml = document.getElementById('moveList');
+  ml.innerHTML = '';
+  const hist = state.history || [];
+  for (let i = 0; i < hist.length; i += 2) {
+    const row = document.createElement('div'); row.className = 'move-row';
+    const num = document.createElement('span'); num.className = 'move-num'; num.textContent = (i/2+1)+'.';
+    row.appendChild(num);
+    ['w','b'].forEach((side, j) => {
+      if (hist[i+j] !== undefined) {
+        const t = document.createElement('span'); t.className = 'move-tag ' + side; t.textContent = hist[i+j];
+        row.appendChild(t);
+      }
+    });
+    ml.appendChild(row);
+  }
+  ml.scrollTop = ml.scrollHeight;
+}
+
+function renderCommentary() {
+  const el = document.getElementById('commentary');
+  if (state.commentary) {
+    el.style.display = 'block';
+    document.getElementById('modePill').textContent = state.engine_mode || 'novelty';
+    document.getElementById('modePill').className = 'mode-pill ' + (state.engine_mode || 'novelty');
+    document.getElementById('commentaryText').textContent = state.commentary;
+  }
+  // keep showing old commentary until next move clears it
+}
+
+function showWin(winner, resultType) {
+  document.getElementById('winTitle').textContent =
+    resultType === 'stalemate' ? 'Draw' : (winner === 'w' ? 'You win!' : 'Engine wins!');
+  document.getElementById('winSub').textContent =
+    resultType === 'stalemate' ? 'Stalemate.' : 'Checkmate.';
+  document.getElementById('winOverlay').className = 'overlay show';
+}
+
+loadState();
+</script>
+</body>
+</html>
