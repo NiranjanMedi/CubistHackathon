@@ -116,8 +116,9 @@ def human_move():
     }
 
     # Engine replies if the game is still going
+    lightning = data.get("mode") == "lightning"
     if _board.legal_moves():
-        em = best_move(_board, depth=3)
+        em = best_move(_board, depth=3, history=_history if lightning else None, noise=80 if lightning else 0)
         if em:
             euci = move_to_uci(em)
             _board.make_move(em)
@@ -137,7 +138,9 @@ def engine_move():
     if not _board.legal_moves():
         return jsonify({"error": "Game over"}), 400
 
-    em   = best_move(_board, depth=3)
+    data = request.get_json(force=True) or {}
+    lightning = data.get("mode") == "lightning"
+    em   = best_move(_board, depth=3, history=_history if lightning else None, noise=80 if lightning else 0)
     euci = move_to_uci(em)
     _board.make_move(em)
     _history.append(euci)
