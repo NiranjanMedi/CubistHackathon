@@ -9,7 +9,7 @@ and human move preferences diverge - these are prime opportunities for novelty.
 from math import exp, log
 from typing import Dict, Optional, Tuple
 from .board import Board, Move
-from .engine import evaluate
+from .stockfish_wrapper import evaluate_with_stockfish
 from .human_model import get_human_distribution
 
 # Configuration
@@ -39,9 +39,9 @@ def get_engine_distribution(board: Board, temperature: float = TEMPERATURE) -> D
     for move in legal_moves:
         new_board = board.copy()
         new_board.make_move(move)
-        # Negate because evaluate() is from white's perspective
-        # and we want score from current player's perspective
-        raw_score = evaluate(new_board)
+        # evaluate_with_stockfish returns score from white's perspective
+        # Convert to current player's perspective
+        raw_score = evaluate_with_stockfish(new_board)
         scores[move] = raw_score if board.turn == 'w' else -raw_score
 
     # Apply softmax to convert scores to probabilities
